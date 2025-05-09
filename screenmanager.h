@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "Screen.h"
 #include "SettingsScreen.h"
+#include "ManualModeScreen.h"
 
 class ScreenManager {
 public:
@@ -34,7 +35,9 @@ private:
     uint8_t _currentForm = 255;
     uint8_t _lastForm = FORM_MANUAL_MODE;
     bool _homed = false;
+    ManualModeScreen _manualModeScreen;
 
     Screen* _currentScreen = nullptr;
     SettingsScreen _settingsScreen;
+
 };

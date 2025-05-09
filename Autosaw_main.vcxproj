@@ -81,6 +81,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ClCompile Include="AutosawController.cpp" />
+    <ClCompile Include="ManualModeScreen.cpp" />
     <ClCompile Include="pendantmanager.cpp" />
     <ClCompile Include="Screenmanager.cpp" />
     <ClCompile Include="SettingsScreen.cpp" />
@@ -102,6 +103,7 @@
     <ClInclude Include="Config.h" />
     <ClInclude Include="EStopManager.h" />
     <ClInclude Include="FileManager.h" />
+    <ClInclude Include="ManualModeScreen.h" />
     <ClInclude Include="MotionController.h" />
     <ClInclude Include="Pendantmanager.h" />
     <ClInclude Include="Screen.h" />

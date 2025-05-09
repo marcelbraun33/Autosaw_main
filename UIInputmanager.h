@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cmath>
 
+
 class UIInputManager {
 public:
     static UIInputManager& Instance();
@@ -27,6 +28,7 @@ public:
 
     // Call every loop() to process encoder movement
     void update();
+    bool isFieldActive(uint16_t buttonId);
 
     bool isEditing() const { return binding.active; }
 

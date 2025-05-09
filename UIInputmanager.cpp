@@ -74,3 +74,7 @@ void UIInputManager::update() {
 
     binding.lastDetent = detent;
 }
+bool UIInputManager::isFieldActive(uint16_t buttonId) {
+    return binding.active && binding.winButtonId == buttonId;
+}
+

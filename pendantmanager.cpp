@@ -63,28 +63,18 @@ int PendantManager::ReadSelector() {
 }
 
 void PendantManager::HandleSelectorChange(int selector) {
+    if (!active) return; // double-guard to prevent accidental screen switch
 
     switch (selector) {
-    case 0x01:
-        ScreenManager::Instance().ShowJogX();
-        break;
-    case 0x02:
-        ScreenManager::Instance().ShowJogY();
-        break;
-    case 0x04:
-        ScreenManager::Instance().ShowJogZ();
-        break;
-    case 0x08:
-        ScreenManager::Instance().ShowSemiAuto();
-        break;
-    case 0x10:
-        ScreenManager::Instance().ShowAutoCut();
-        break;
-    default:
-        ScreenManager::Instance().ShowManualMode();
-        break;
+    case 0x01: ScreenManager::Instance().ShowJogX(); break;
+    case 0x02: ScreenManager::Instance().ShowJogY(); break;
+    case 0x04: ScreenManager::Instance().ShowJogZ(); break;
+    case 0x08: ScreenManager::Instance().ShowSemiAuto(); break;
+    case 0x10: ScreenManager::Instance().ShowAutoCut(); break;
+    default:   ScreenManager::Instance().ShowManualMode(); break;
     }
 }
+
 
 void PendantManager::SyncScreenToKnob() {
     if (!active) {

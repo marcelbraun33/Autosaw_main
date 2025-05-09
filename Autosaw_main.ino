@@ -45,6 +45,8 @@ void myGenieEventHandler() {
         }
 
                                  // ✅ New additions for gear/settings buttons
+
+
         case WINBUTTON_SETTINGS_F5:
         case WINBUTTON_SETTINGS_SEMI:
         case WINBUTTON_SETTINGS_F7:
