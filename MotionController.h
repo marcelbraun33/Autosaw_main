@@ -2,13 +2,22 @@
 
 class MotionController {
 public:
-    static MotionController& Instance() {
-        static MotionController instance;
-        return instance;
-    }
+    static MotionController& Instance();
 
-    void setup() {}
+    void setup();
+    void update();
+
+    void StartSpindle(float rpm);
+    void StopSpindle();
+    void SetManualOverrideRPM(float rpm);
+
+
+    bool IsSpindleRunning() const;
+    float CommandedRPM() const;
+
 
 private:
-    MotionController() = default;
+    MotionController();
+    bool spindleRunning = false;
+    float commandedRPM = 0.0f;
 };

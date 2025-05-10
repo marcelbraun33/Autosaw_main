@@ -1,21 +1,27 @@
-#pragma once
+
+    #pragma once
 
 #include <genieArduinoDEV.h>
 #include <Arduino.h>  // Needed for delay()
 
 // Abstract base class for all UI screens
-class Screen {
-public:
-    virtual ~Screen() {}
+// Abstract base class for all UI screens
+    class Screen {
+    public:
+        virtual ~Screen() {}
 
-    // Called when the screen is displayed
-    virtual void onShow() = 0;
+        // Called when the screen is displayed
+        virtual void onShow() = 0;
 
-    // Called when the screen is hidden (optional override)
-    virtual void onHide() {}
+        // Called when the screen is hidden (optional override)
+        virtual void onHide() {}
 
-    // Handle incoming events from the Gen4 display
-    virtual void handleEvent(const genieFrame& e) = 0;
+        // Handle incoming events from the Gen4 display
+        virtual void handleEvent(const genieFrame& e) = 0;
+
+        // Optional per-frame update
+        virtual void update() {} // <- Add this line here
+
 
 protected:
     // Safe WinButton state writer with delay to avoid redraw conflict

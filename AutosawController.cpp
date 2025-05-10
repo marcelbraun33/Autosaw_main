@@ -45,4 +45,8 @@ void AutoSawController::update() {
     EStopManager::Instance().update();
     PendantManager::Instance().Update();
     UIInputManager::Instance().update();
+    if (ScreenManager::Instance().currentScreen()) {
+        ScreenManager::Instance().currentScreen()->update();
+    }
+
 }

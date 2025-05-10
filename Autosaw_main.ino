@@ -6,6 +6,7 @@
 #include "ScreenManager.h"
 #include "UIInputManager.h"
 #include "PendantManager.h"
+#include "MotionController.h"
 
 // === Globals ===
 Genie genie;
@@ -26,23 +27,6 @@ void myGenieEventHandler() {
             ScreenManager::Instance().ShowManualMode();
             return;
 
-        case WINBUTTON_SET_RPM_F7: {
-            static bool rpmSetActive = false;
-            rpmSetActive = !rpmSetActive;
-            if (rpmSetActive) {
-                UIInputManager::Instance().bindField(
-                    WINBUTTON_SET_RPM_F7,
-                    LEDDIGITS_MANUAL_RPM,
-                    &SettingsManager::Instance().settings().defaultRPM,
-                    100, 10000, 10, 0
-                );
-            }
-            else {
-                UIInputManager::Instance().unbindField();
-                SettingsManager::Instance().save();
-            }
-            return;
-        }
 
                                  // ✅ New additions for gear/settings buttons
 
@@ -51,11 +35,23 @@ void myGenieEventHandler() {
         case WINBUTTON_SETTINGS_SEMI:
         case WINBUTTON_SETTINGS_F7:
             if (ScreenManager::Instance().currentForm() != FORM_SETTINGS) {
-                Serial.println("myGenieEventHandler: Opening Settings screen.");
+               // Serial.println("myGenieEventHandler: Opening Settings screen.");
                 genie.WriteObject(GENIE_OBJ_WINBUTTON, index, 0);  // ⬅️ RESET BUTTON
                 ScreenManager::Instance().ShowSettings();
             }
+            break;
+        case WINBUTTON_SPINDLE_TOGGLE_F7: {
+            auto& mc = MotionController::Instance();
+            auto& settings = SettingsManager::Instance().settings();
+            if (mc.IsSpindleRunning()) {
+                mc.StopSpindle();
+            }
+            else {
+                mc.StartSpindle(settings.defaultRPM);
+            }
             return;
+        }
+
 
 
 
@@ -79,8 +75,8 @@ void loop() {
     static int32_t lastPos = 0;
     int32_t pos = ClearCore::EncoderIn.Position();
     if (pos != lastPos) {
-        Serial.print("Encoder Pos: ");
-        Serial.println(pos);
+       // Serial.print("Encoder Pos: ");
+       // Serial.println(pos);
         lastPos = pos;
     }
 }

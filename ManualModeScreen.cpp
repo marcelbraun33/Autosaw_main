@@ -4,26 +4,27 @@
 #include "UIInputManager.h"
 #include "SettingsManager.h"
 #include "PendantManager.h"
+#include "MotionController.h"
 #include <ClearCore.h>
 #include "Config.h"
 
 extern Genie genie;
 
 void ManualModeScreen::onShow() {
-    auto& S = SettingsManager::Instance().settings();
-    UIInputManager::Instance().unbindField();
     PendantManager::Instance().SetEnabled(true);
+    UIInputManager::Instance().unbindField();
 
-    // Force the button to visually reset to OFF (twice for reliability)
+    // Sync the spindle toggle button visual state
+    bool spindleActive = MotionController::Instance().IsSpindleRunning();
+    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SPINDLE_TOGGLE_F7, spindleActive ? 1 : 0);
+
+    // Reset Set RPM button visual state
     genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SET_RPM_F7, 0);
     delay(50);
     genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SET_RPM_F7, 0);
 
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_MANUAL_RPM, (uint16_t)S.defaultRPM);
-
-    Serial.println("ManualModeScreen: onShow() - reset RPM edit state.");
+    update();
 }
-
 
 void ManualModeScreen::onHide() {
     UIInputManager::Instance().unbindField();
@@ -31,34 +32,12 @@ void ManualModeScreen::onHide() {
     genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SET_RPM_F7, 0);
 }
 
-void ManualModeScreen::handleEvent(const genieFrame& e) {
-    if (e.reportObject.cmd != GENIE_REPORT_EVENT || e.reportObject.object != GENIE_OBJ_WINBUTTON)
-        return;
-
-    switch (e.reportObject.index) {
-    case WINBUTTON_SET_RPM_F7:
-        handleRPMEditButton();
-        break;
-    default:
-        break;
-    }
+void ManualModeScreen::handleEvent(const genieFrame&) {
+    // No editable fields — ignore inputs
 }
 
-void ManualModeScreen::handleRPMEditButton() {
-    auto& ui = UIInputManager::Instance();
-    auto& S = SettingsManager::Instance().settings();
-
-    if (ui.isEditing()) {
-        if (ui.isFieldActive(WINBUTTON_SET_RPM_F7)) {
-            ui.unbindField();
-            genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SET_RPM_F7, 0);
-            SettingsManager::Instance().save();
-            PendantManager::Instance().SetEnabled(true);
-        }
-    }
-    else {
-        ui.bindField(WINBUTTON_SET_RPM_F7, LEDDIGITS_MANUAL_RPM, &S.defaultRPM, 100, 10000, 10, 0);
-        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SET_RPM_F7, 1);
-        PendantManager::Instance().SetEnabled(false);
-    }
+void ManualModeScreen::update() {
+    auto& mc = MotionController::Instance();
+    uint16_t displayVal = mc.IsSpindleRunning() ? (uint16_t)mc.CommandedRPM() : 0;
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_MANUAL_RPM, displayVal);
 }

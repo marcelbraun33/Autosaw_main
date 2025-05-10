@@ -3,6 +3,7 @@
 #include "SettingsManager.h"
 #include <genieArduinoDEV.h>
 #include <ClearCore.h>
+#include "FileManager.h"
 
 SettingsManager& SettingsManager::Instance() {
     static SettingsManager inst;
@@ -23,5 +24,22 @@ void SettingsManager::load() {
 }
 
 void SettingsManager::save() {
+    // Clamp values to valid ranges
+    if (settings_.defaultRPM > 4000) settings_.defaultRPM = 4000;
+    if (settings_.defaultRPM < 0)    settings_.defaultRPM = 0;
+
+    if (settings_.bladeDiameter > 10.0f) settings_.bladeDiameter = 10.0f;
+    if (settings_.bladeDiameter < 0.1f)  settings_.bladeDiameter = 0.1f;
+
+    if (settings_.bladeThickness > 0.5f)   settings_.bladeThickness = 0.5f;
+    if (settings_.bladeThickness < 0.001f) settings_.bladeThickness = 0.001f;
+
+    if (settings_.feedRate > 25.0f) settings_.feedRate = 25.0f;
+    if (settings_.feedRate < 0.0f)  settings_.feedRate = 0.0f;
+
+    if (settings_.rapidRate > 300.0f) settings_.rapidRate = 300.0f;
+    if (settings_.rapidRate < 0.0f)   settings_.rapidRate = 0.0f;
+
     // TODO: write to SD card or EEPROM
 }
+

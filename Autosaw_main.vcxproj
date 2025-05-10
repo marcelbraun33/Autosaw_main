@@ -82,6 +82,7 @@
   <ItemGroup>
     <ClCompile Include="AutosawController.cpp" />
     <ClCompile Include="ManualModeScreen.cpp" />
+    <ClCompile Include="MotionController.cpp" />
     <ClCompile Include="pendantmanager.cpp" />
     <ClCompile Include="Screenmanager.cpp" />
     <ClCompile Include="SettingsScreen.cpp" />

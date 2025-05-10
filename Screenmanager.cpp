@@ -31,8 +31,8 @@ void ScreenManager::writeForm(uint8_t formId) {
         _currentScreen->onShow(); // Notify new screen
     }
 
-    Serial.print("writeForm called for form: ");
-    Serial.println(formId);
+   // Serial.print("writeForm called for form: ");
+   // Serial.println(formId);
 }
 
 
@@ -68,8 +68,8 @@ void ScreenManager::SetHomed(bool homed) {
 }
 
 Screen* ScreenManager::currentScreen() {
-    Serial.print("ScreenManager::currentScreen - _currentForm: ");
-    Serial.println(_currentForm);
+    //Serial.print("ScreenManager::currentScreen - _currentForm: ");
+   // Serial.println(_currentForm);
 
     switch (_currentForm) {
     case FORM_MANUAL_MODE:

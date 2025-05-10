@@ -10,6 +10,7 @@ struct Settings {
     float defaultRPM;
     float feedRate;
     float rapidRate;
+    float manualOverrideRPM; 
 };
 
 class SettingsManager {
