@@ -42,11 +42,12 @@ void AutoSawController::setup() {
 
 void AutoSawController::update() {
     genie.DoEvents();
-    EStopManager::Instance().update();
+    EStopManager::Instance().update();  // Make sure this is called
     PendantManager::Instance().Update();
     UIInputManager::Instance().update();
+    MotionController::Instance().update();
     if (ScreenManager::Instance().currentScreen()) {
         ScreenManager::Instance().currentScreen()->update();
     }
-
 }
+

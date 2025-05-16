@@ -46,6 +46,9 @@
     <ClCompile Include="MotionController.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="EStopManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.Autosaw_main.vsarduino.h">
