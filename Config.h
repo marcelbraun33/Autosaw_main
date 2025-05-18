@@ -153,8 +153,12 @@
 #define WINBUTTON_CAPTURE_CUT_END_F6       27
 #define WINBUTTON_ACTIVATE_JOG_Y_F6        28
 #define WINBUTTON_SET_WITH_MPG_F6          29
-#define WINBUTTON_CAPTURE_CUT_START_F6     30
-
+#define WINBUTTON_CAPTURE_CUT_START_F6     30I am going to show you 
+// === Motor Connections ===
+#define MOTOR_SPINDLE       ConnectorM0   // Velocity mode (MCVC)
+#define MOTOR_ROTARY_Z      ConnectorM1   // Step/Dir (was MOTOR_FENCE_X)
+#define MOTOR_TABLE_Y       ConnectorM2   // Step/Dir (unchanged)
+#define MOTOR_FENCE_X       ConnectorM3   // Step/Dir (was MOTOR_ROTARY_Z)
 // Form7 (Manual Mode)
 #define WINBUTTON_SPINDLE_TOGGLE_F7        31
 #define WINBUTTON_ACTIVATE_PENDANT         32

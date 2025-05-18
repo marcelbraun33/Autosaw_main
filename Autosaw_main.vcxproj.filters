@@ -13,6 +13,24 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>xml;json;txt;rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\Screens">
+      <UniqueIdentifier>{cac31200-5379-4700-80f8-0513add3a442}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Screens">
+      <UniqueIdentifier>{2fdf8d41-cfee-4483-9946-ea7c78e6170b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Motion">
+      <UniqueIdentifier>{780a3c74-de62-4031-8c66-1744e10499dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Core">
+      <UniqueIdentifier>{199de050-aaf1-498f-b3bb-5991cac5daf5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Core">
+      <UniqueIdentifier>{9e54f32e-9c37-4700-8795-93b290786489}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Motion">
+      <UniqueIdentifier>{e5676234-9994-469c-84d2-8f5b1950c657}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\arduino folders read me.txt">
@@ -22,73 +40,142 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Autosaw_main.ino" />
-    <ClCompile Include="pendantmanager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Screenmanager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SettingsScreen.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SettingsManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="UIInputmanager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="AutosawController.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Screens</Filter>
     </ClCompile>
     <ClCompile Include="ManualModeScreen.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Screens</Filter>
     </ClCompile>
-    <ClCompile Include="MotionController.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="SettingsScreen.cpp">
+      <Filter>Source Files\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="JogYScreen.cpp">
+      <Filter>Source Files\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="AutoCutScreen.cpp">
+      <Filter>Source Files\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="JogXScreen.cpp">
+      <Filter>Source Files\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="JogZScreen.cpp">
+      <Filter>Source Files\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="SemiAutoScreen.cpp">
+      <Filter>Source Files\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="UIInputmanager.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="SettingsManager.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="pendantmanager.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="FileManager.cpp">
+      <Filter>Source Files\Core</Filter>
     </ClCompile>
     <ClCompile Include="EStopManager.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="CutSequenceController.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="AutosawController.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Spindle.cpp">
+      <Filter>Source Files\Motion</Filter>
+    </ClCompile>
+    <ClCompile Include="MotionController.cpp">
+      <Filter>Source Files\Motion</Filter>
+    </ClCompile>
+    <ClCompile Include="HomingScreen.cpp">
+      <Filter>Source Files\Screens</Filter>
+    </ClCompile>
+    <ClCompile Include="XAxis.cpp">
+      <Filter>Source Files\Motion</Filter>
+    </ClCompile>
+    <ClCompile Include="YAxis.cpp">
+      <Filter>Source Files\Motion</Filter>
+    </ClCompile>
+    <ClCompile Include="ZAxis.cpp">
+      <Filter>Source Files\Motion</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.Autosaw_main.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Config.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Pendantmanager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Screen.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="screenmanager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SettingsManager.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Screens</Filter>
     </ClInclude>
     <ClInclude Include="SettingsScreen.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Screens</Filter>
     </ClInclude>
-    <ClInclude Include="UIInputmanager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="AutosawController.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="EStopManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="MotionController.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="FileManager.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="screenmanager.h">
+      <Filter>Header Files\Screens</Filter>
     </ClInclude>
     <ClInclude Include="ManualModeScreen.h">
+      <Filter>Header Files\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="AutoCutScreen.h">
+      <Filter>Header Files\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="JogXScreen.h">
+      <Filter>Header Files\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="JogYScreen.h">
+      <Filter>Header Files\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="JogZScreen.h">
+      <Filter>Header Files\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="SemiAutoScreen.h">
+      <Filter>Header Files\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="MotionController.h">
+      <Filter>Header Files\Motion</Filter>
+    </ClInclude>
+    <ClInclude Include="AutosawController.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Config.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="CutSequenceController.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="EStopManager.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="FileManager.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Pendantmanager.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="SettingsManager.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UIInputmanager.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="XAxis.h">
+      <Filter>Header Files\Motion</Filter>
+    </ClInclude>
+    <ClInclude Include="Spindle.h">
+      <Filter>Header Files\Motion</Filter>
+    </ClInclude>
+    <ClInclude Include="YAxis.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ZAxis.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HomingScreen.h">
+      <Filter>Header Files\Screens</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

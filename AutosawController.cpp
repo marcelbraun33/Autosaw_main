@@ -1,53 +1,66 @@
+// === AutoSawController.cpp ===
+#include <ClearCore.h>
+#include <genieArduinoDEV.h>
+#include "Config.h"
 #include "AutoSawController.h"
 #include "EStopManager.h"
-#include "MotionController.h"
 #include "PendantManager.h"
 #include "UIInputManager.h"
-#include "ScreenManager.h"
 #include "SettingsManager.h"
 #include "FileManager.h"
-#include "Config.h"
-#include <genieArduinoDEV.h>
-#include <ClearCore.h>
+#include "ScreenManager.h"
+#include "MotionController.h"
 
-// Pull in shared Genie instance and event handler
-extern Genie genie;
-extern void myGenieEventHandler();
+extern Genie genie;  // main sketch defines this
+extern void myGenieEventHandler();  // forward-declare the event handler from the sketch
 
 AutoSawController& AutoSawController::Instance() {
-    static AutoSawController instance;
-    return instance;
+    static AutoSawController inst;
+    return inst;
 }
 
 void AutoSawController::setup() {
+    // Serial and Genie UI
     Serial.begin(USB_BAUD);
     while (!Serial);
-
     GENIE_SERIAL_PORT.begin(GENIE_BAUD);
     genie.Begin(GENIE_SERIAL_PORT);
     genie.AttachEventHandler(myGenieEventHandler);
 
+    // Input and safety
     ClearCore::EncoderIn.Enable(true);
-    ClearCore::EncoderIn.Position(0);
-
     EStopManager::Instance().setup();
+
+    // Motion hardware
     MotionController::Instance().setup();
+
+    // Pendant and UI input
     PendantManager::Instance().Init();
     UIInputManager::Instance().init(ENCODER_COUNTS_PER_CLICK);
+
+    // Settings and filesystem
     SettingsManager::Instance().load();
-    FileManager::Instance(); // if constructor handles init
+    FileManager::Instance();
+
+    // Initialize screens and perform startup homing
     ScreenManager::Instance().Init();
-    ScreenManager::Instance().ShowManualMode();
+    // Immediately show homing screen to wait on MSP "Home on Enable"
+    ScreenManager::Instance().ShowHoming();
 }
 
 void AutoSawController::update() {
+    // Process touch and button events
     genie.DoEvents();
-    EStopManager::Instance().update();  // Make sure this is called
+    // E-stop and pendant
+    EStopManager::Instance().update();
     PendantManager::Instance().Update();
     UIInputManager::Instance().update();
+
+    // Drive updates
     MotionController::Instance().update();
+
+    // UI screen logic
     if (ScreenManager::Instance().currentScreen()) {
         ScreenManager::Instance().currentScreen()->update();
     }
 }
-

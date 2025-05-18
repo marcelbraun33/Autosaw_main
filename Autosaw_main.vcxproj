@@ -80,15 +80,27 @@
     <TargetOSAndVersion>Arduino</TargetOSAndVersion>
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="AutoCutScreen.cpp" />
     <ClCompile Include="AutosawController.cpp" />
+    <ClCompile Include="CutSequenceController.cpp" />
     <ClCompile Include="EStopManager.cpp" />
+    <ClCompile Include="FileManager.cpp" />
+    <ClCompile Include="HomingScreen.cpp" />
+    <ClCompile Include="JogXScreen.cpp" />
+    <ClCompile Include="JogYScreen.cpp" />
+    <ClCompile Include="JogZScreen.cpp" />
     <ClCompile Include="ManualModeScreen.cpp" />
     <ClCompile Include="MotionController.cpp" />
     <ClCompile Include="pendantmanager.cpp" />
     <ClCompile Include="Screenmanager.cpp" />
+    <ClCompile Include="SemiAutoScreen.cpp" />
     <ClCompile Include="SettingsScreen.cpp" />
     <ClCompile Include="SettingsManager.cpp" />
+    <ClCompile Include="Spindle.cpp" />
     <ClCompile Include="UIInputmanager.cpp" />
+    <ClCompile Include="XAxis.cpp" />
+    <ClCompile Include="YAxis.cpp" />
+    <ClCompile Include="ZAxis.cpp" />
     <None Include=".gitignore" />
     <ClCompile Include="Autosaw_main.ino">
       <FileType>CppCode</FileType>
@@ -101,18 +113,29 @@
     <ProjectCapability Include="VisualMicro" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AutoCutScreen.h" />
     <ClInclude Include="AutosawController.h" />
     <ClInclude Include="Config.h" />
+    <ClInclude Include="CutSequenceController.h" />
     <ClInclude Include="EStopManager.h" />
     <ClInclude Include="FileManager.h" />
+    <ClInclude Include="HomingScreen.h" />
+    <ClInclude Include="JogXScreen.h" />
+    <ClInclude Include="JogYScreen.h" />
+    <ClInclude Include="JogZScreen.h" />
     <ClInclude Include="ManualModeScreen.h" />
     <ClInclude Include="MotionController.h" />
     <ClInclude Include="Pendantmanager.h" />
     <ClInclude Include="Screen.h" />
     <ClInclude Include="screenmanager.h" />
+    <ClInclude Include="SemiAutoScreen.h" />
     <ClInclude Include="SettingsManager.h" />
     <ClInclude Include="SettingsScreen.h" />
+    <ClInclude Include="Spindle.h" />
     <ClInclude Include="UIInputmanager.h" />
+    <ClInclude Include="XAxis.h" />
+    <ClInclude Include="YAxis.h" />
+    <ClInclude Include="ZAxis.h" />
     <ClInclude Include="__vm\.Autosaw_main.vsarduino.h" />
   </ItemGroup>
   <PropertyGroup>
