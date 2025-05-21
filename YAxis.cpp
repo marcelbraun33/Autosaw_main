@@ -26,27 +26,18 @@ void YAxis::Setup() {
     _motor->VelMax(MAX_VELOCITY);
     _motor->AccelMax(MAX_ACCELERATION);
 
-    // Clear any existing alerts
-    ClearAlerts();
+    // Clear any existing alerts first
+    if (_motor->StatusReg().bit.AlertsPresent) {
+        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Clearing initial alerts");
+        _motor->ClearAlerts();
+    }
 
-    // Enable driver (only once)
+    // Enable driver - this is critical for proper initialization
     _motor->EnableRequest(true);
 
-    // Wait for HLFB with timeout
-    uint32_t startTime = ClearCore::TimingMgr.Milliseconds();
-    ClearCore::ConnectorUsb.Send("[Y-Axis] Waiting for HLFB...");
-    while (_motor->HlfbState() != MotorDriver::HLFB_ASSERTED) {
-        if (ClearCore::TimingMgr.Milliseconds() - startTime > 5000) {  // 5 second timeout
-            ClearCore::ConnectorUsb.SendLine(" TIMEOUT");
-            break;
-        }
-    }
-    if (_motor->HlfbState() == MotorDriver::HLFB_ASSERTED) {
-        ClearCore::ConnectorUsb.SendLine(" ASSERTED");
-    }
-
-    _isSetup = true;
+    // No need to block on HLFB here - User Seeks Home mode should start with HLFB not asserted
     ClearCore::ConnectorUsb.SendLine("[Y-Axis] Setup complete");
+    _isSetup = true;
 }
 
 void YAxis::ClearAlerts() {
@@ -73,14 +64,9 @@ void YAxis::ClearAlerts() {
         }
         if (_motor->AlertReg().bit.MotorFaulted) {
             ClearCore::ConnectorUsb.SendLine(" - MotorFaulted");
-            // If motor is faulted, cycle enable
-            _motor->EnableRequest(false);
-            Delay_ms(100);
-            _motor->EnableRequest(true);
-            Delay_ms(100);
         }
 
-        // Clear any remaining alerts
+        // Clear alerts without cycling enable
         _motor->ClearAlerts();
         ClearCore::ConnectorUsb.SendLine("[Y-Axis] Alerts cleared");
     }
@@ -95,10 +81,10 @@ bool YAxis::StartHoming() {
         return false;
     }
 
-    // Check for alerts and clear them before homing
+    // Clear any alerts before starting
     if (_motor->StatusReg().bit.AlertsPresent) {
-        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Alerts present before homing, clearing...");
-        ClearAlerts();
+        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Clearing alerts before homing");
+        _motor->ClearAlerts();
     }
 
     // Only proceed if homing state is idle
@@ -136,11 +122,10 @@ void YAxis::processHoming() {
     ClearCore::ConnectorUsb.Send("[Y-Axis] HLFB State: ");
     ClearCore::ConnectorUsb.SendLine(_motor->HlfbState() == MotorDriver::HLFB_ASSERTED ? "ASSERTED" : "NOT ASSERTED");
 
-    // Handle alerts that could prevent motion
+    // Handle alerts but don't exit homing - just clear them and continue
     if (_motor->StatusReg().bit.AlertsPresent) {
-        ClearCore::ConnectorUsb.SendLine("[Y-Axis] ALERT — homing canceled");
-        _homingState = HomingState::Failed;
-        return;
+        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Alert present during homing, clearing");
+        _motor->ClearAlerts();
     }
 
     switch (_homingState) {
@@ -208,6 +193,12 @@ bool YAxis::MoveTo(float positionInches, float velocityScale) {
     if (!_isSetup) {
         ClearCore::ConnectorUsb.SendLine("[Y-Axis] MoveTo failed: not setup");
         return false;
+    }
+
+    // Clear any alerts before moving
+    if (_motor->StatusReg().bit.AlertsPresent) {
+        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Clearing alerts before move");
+        _motor->ClearAlerts();
     }
 
     // Allow movement during certain homing states or when not homing
