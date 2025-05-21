@@ -91,6 +91,7 @@
     <ClCompile Include="JogZScreen.cpp" />
     <ClCompile Include="ManualModeScreen.cpp" />
     <ClCompile Include="MotionController.cpp" />
+    <ClCompile Include="MPGJogManager.cpp" />
     <ClCompile Include="pendantmanager.cpp" />
     <ClCompile Include="Screenmanager.cpp" />
     <ClCompile Include="SemiAutoScreen.cpp" />
@@ -125,6 +126,7 @@
     <ClInclude Include="JogZScreen.h" />
     <ClInclude Include="ManualModeScreen.h" />
     <ClInclude Include="MotionController.h" />
+    <ClInclude Include="MPGJogManager.h" />
     <ClInclude Include="Pendantmanager.h" />
     <ClInclude Include="Screen.h" />
     <ClInclude Include="screenmanager.h" />

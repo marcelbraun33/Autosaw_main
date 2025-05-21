@@ -10,6 +10,8 @@
 #include "FileManager.h"
 #include "ScreenManager.h"
 #include "MotionController.h"
+#include "MPGJogManager.h"
+
 
 extern Genie genie;  // main sketch defines this
 extern void myGenieEventHandler();  // forward-declare the event handler from the sketch
@@ -54,6 +56,7 @@ void AutoSawController::setup() {
 
   
     ScreenManager::Instance().Init();
+    MPGJogManager::Instance().setup();
     
 }
 

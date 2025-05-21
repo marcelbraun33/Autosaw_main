@@ -8,10 +8,10 @@
 #include "UIInputManager.h"
 #include "PendantManager.h"
 #include "MotionController.h"
+#include "MPGJogManager.h"
 
 // Reference the single global Genie instance defined in the main sketch
 Genie genie;
-
 void myGenieEventHandler() {
     // Debug: handler entry
     ClearCore::ConnectorUsb.SendLine("[EV] myGenieEventHandler called");
@@ -34,12 +34,41 @@ void myGenieEventHandler() {
         ClearCore::ConnectorUsb.SendLine();
 
         switch (index) {
+            // ─── Jog Enable ──────────────────────────────────────────
+        case WINBUTTON_ACTIVATE_JOG: {
+            ClearCore::ConnectorUsb.SendLine("[EV] Activate Jog button");
+            if (ScreenManager::Instance().currentForm() == FORM_JOG_X) {
+                bool enabled = !MPGJogManager::Instance().isEnabled();
+                MPGJogManager::Instance().setEnabled(enabled);
+                MPGJogManager::Instance().setAxis(AXIS_X);
+
+                // capture current range
+                int range = JOG_MULTIPLIER_X1;
+                if (RANGE_PIN_X10.State())  range = JOG_MULTIPLIER_X10;
+                if (RANGE_PIN_X100.State()) range = JOG_MULTIPLIER_X100;
+                MPGJogManager::Instance().setRangeMultiplier(range);
+
+                // reset encoder baseline so no “phantom” jump
+                UIInputManager::Instance().resetRaw();
+
+                // reflect new state on the button
+                genie.WriteObject(GENIE_OBJ_WINBUTTON,
+                    WINBUTTON_ACTIVATE_JOG,
+                    enabled ? 1 : 0);
+            }
+            return;
+        }
+
+                                   // ─── Pendant Toggle ─────────────────────────────────────
         case WINBUTTON_ACTIVATE_PENDANT:
             ClearCore::ConnectorUsb.SendLine("[EV] Pendant toggle button");
-            PendantManager::Instance().SetEnabled(!PendantManager::Instance().IsEnabled());
+            PendantManager::Instance().SetEnabled(
+                !PendantManager::Instance().IsEnabled()
+            );
             ScreenManager::Instance().ShowManualMode();
             return;
 
+            // ─── Settings Screen ────────────────────────────────────
         case WINBUTTON_SETTINGS_F5:
         case WINBUTTON_SETTINGS_SEMI:
         case WINBUTTON_SETTINGS_F7:
@@ -50,29 +79,30 @@ void myGenieEventHandler() {
             }
             return;
 
+            // ─── Spindle On/Off ─────────────────────────────────────
         case WINBUTTON_SPINDLE_TOGGLE_F7:
             ClearCore::ConnectorUsb.SendLine("[EV] Spindle toggle button");
             if (MotionController::Instance().IsSpindleRunning()) {
                 MotionController::Instance().StopSpindle();
             }
             else {
-                auto& settings = SettingsManager::Instance().settings();
-                MotionController::Instance().StartSpindle(settings.defaultRPM);
+                auto& S = SettingsManager::Instance().settings();
+                MotionController::Instance().StartSpindle(S.defaultRPM);
             }
             return;
 
+            // ─── Homing ──────────────────────────────────────────────
         case WINBUTTON_ACTIVATE_HOMING:
             ClearCore::ConnectorUsb.SendLine("[EV] Home Axes button pressed");
-            // Trigger MSP auto-homing via enable toggle on X (M2) and Y (M3) connectors
-            // X axis on M2
+            // toggle enable on Y then Z to trigger MSP homing
             MOTOR_TABLE_Y.EnableRequest(false);
             MOTOR_TABLE_Y.EnableRequest(true);
-            // Y axis on M3
             MOTOR_ROTARY_Z.EnableRequest(false);
             MOTOR_ROTARY_Z.EnableRequest(true);
             ScreenManager::Instance().ShowHoming();
             return;
 
+            // ─── Fallback ───────────────────────────────────────────
         default:
             ClearCore::ConnectorUsb.Send("[EV] Other WINBUTTON idx=");
             ClearCore::ConnectorUsb.Send(index);
@@ -81,12 +111,11 @@ void myGenieEventHandler() {
         }
     }
 
-    // Dispatch other events to current screen
+    // Dispatch anything else to the current screen
     if (ScreenManager::Instance().currentScreen()) {
         ScreenManager::Instance().currentScreen()->handleEvent(evt);
     }
 }
-
 
 void setup() {
     AutoSawController::Instance().setup();
@@ -94,11 +123,5 @@ void setup() {
 
 void loop() {
     AutoSawController::Instance().update();
-
-    // Optional: debug the encoder position
-    static int32_t lastPos = 0;
-    int32_t pos = ClearCore::EncoderIn.Position();
-    if (pos != lastPos) {
-        lastPos = pos;
-    }
 }
+

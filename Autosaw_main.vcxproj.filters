@@ -103,6 +103,9 @@
     <ClCompile Include="ZAxis.cpp">
       <Filter>Source Files\Motion</Filter>
     </ClCompile>
+    <ClCompile Include="MPGJogManager.cpp">
+      <Filter>Source Files\Motion</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.Autosaw_main.vsarduino.h">
@@ -176,6 +179,9 @@
     </ClInclude>
     <ClInclude Include="HomingScreen.h">
       <Filter>Header Files\Screens</Filter>
+    </ClInclude>
+    <ClInclude Include="MPGJogManager.h">
+      <Filter>Header Files\Motion</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,25 +1,46 @@
 
 // === MPGJogManager.cpp ===
 #include "MPGJogManager.h"
-#include "Config.h"
-#include <ClearCore.h>
 
-void MPGJogManager::begin(MotionController* controller, AxisId axisId) {
-    _controller = controller;
-    _axisId = axisId;
-    _lastDetent = ClearCore::EncoderIn.Position() / ENCODER_COUNTS_PER_CLICK;
+MPGJogManager& MPGJogManager::Instance() {
+    static MPGJogManager inst;
+    return inst;
+}
+
+MPGJogManager::MPGJogManager() = default;
+
+void MPGJogManager::setup() {
+    _initialized = true;
+    _enabled = false;
 }
 
 void MPGJogManager::update() {
-    if (!_controller) return;
+    // Nothing to poll
+}
 
-    int32_t position = ClearCore::EncoderIn.Position();
-    int32_t detent = position / ENCODER_COUNTS_PER_CLICK;
-    int32_t delta = detent - _lastDetent;
-    if (delta == 0) return;
+void MPGJogManager::setEnabled(bool en) {
+    _enabled = en;
+}
 
-    _lastDetent = detent;
-    float distance = delta * JOG_STEP;
-    float current = _controller->getAxisPosition(_axisId);
-    _controller->moveToWithRate(_axisId, current + distance, 1.0f);
+bool MPGJogManager::isEnabled() const {
+    return _initialized && _enabled;
+}
+
+void MPGJogManager::setAxis(AxisId axis) {
+    _currentAxis = axis;
+}
+
+void MPGJogManager::setRangeMultiplier(int multiplier) {
+    _range = multiplier;
+}
+
+void MPGJogManager::onEncoderDelta(int deltaClicks) {
+    if (!isEnabled()) return;
+    // deltaClicks * (0.001" * multiplier)
+    float inches = deltaClicks * (0.001f * _range);
+    MotionController::Instance().moveToWithRate(
+        _currentAxis,
+        MotionController::Instance().getAxisPosition(_currentAxis) + inches,
+        0.5f
+    );
 }
