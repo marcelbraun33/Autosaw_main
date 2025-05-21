@@ -1,4 +1,3 @@
-
 // === MPGJogManager.h ===
 #pragma once
 
@@ -6,6 +5,7 @@
 #include "Config.h"
 #include "MotionController.h"
 
+enum AxisId;  // Forward declaration
 /// Handles MPG encoder-based jog movements for the selected axis
 class MPGJogManager {
 public:
@@ -27,15 +27,18 @@ public:
     /// Set the range multiplier (1, 10, 100)
     void setRangeMultiplier(int multiplier);
 
-    /// Enable or disable jog on MPG
+    /// Enable or disable MPG-jog handling
     void setEnabled(bool en);
     bool isEnabled() const;
 
 private:
     MPGJogManager();
+
+    /// Poll the range selector pins and update range
+    void updateRangeFromInputs();
+
     bool    _initialized = false;
     bool    _enabled = false;
     AxisId  _currentAxis = AXIS_X;
     int     _range = JOG_MULTIPLIER_X1;
 };
-

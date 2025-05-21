@@ -10,8 +10,10 @@
 #include "MotionController.h"
 #include "MPGJogManager.h"
 
+
 // Reference the single global Genie instance defined in the main sketch
 Genie genie;
+
 void myGenieEventHandler() {
     // Debug: handler entry
     ClearCore::ConnectorUsb.SendLine("[EV] myGenieEventHandler called");
@@ -42,19 +44,21 @@ void myGenieEventHandler() {
                 MPGJogManager::Instance().setEnabled(enabled);
                 MPGJogManager::Instance().setAxis(AXIS_X);
 
-                // capture current range
+                // capture current range knobs
                 int range = JOG_MULTIPLIER_X1;
                 if (RANGE_PIN_X10.State())  range = JOG_MULTIPLIER_X10;
                 if (RANGE_PIN_X100.State()) range = JOG_MULTIPLIER_X100;
                 MPGJogManager::Instance().setRangeMultiplier(range);
 
-                // reset encoder baseline so no “phantom” jump
+                // ** reset the encoder baseline so no phantom jump **
                 UIInputManager::Instance().resetRaw();
 
-                // reflect new state on the button
-                genie.WriteObject(GENIE_OBJ_WINBUTTON,
+                // reflect new state on the UI button
+                genie.WriteObject(
+                    GENIE_OBJ_WINBUTTON,
                     WINBUTTON_ACTIVATE_JOG,
-                    enabled ? 1 : 0);
+                    enabled ? 1 : 0
+                );
             }
             return;
         }
