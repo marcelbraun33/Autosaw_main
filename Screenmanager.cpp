@@ -3,6 +3,8 @@
 #include "ScreenManager.h"
 #include "Config.h"
 #include <ClearCore.h>
+#include "MPGJogManager.h"
+
 extern Genie genie;  // reference to global UI instance
 
 
@@ -27,6 +29,11 @@ void ScreenManager::writeForm(uint8_t formId) {
     ClearCore::ConnectorUsb.Send(" → ");
     ClearCore::ConnectorUsb.SendLine(formId);
 
+    // Disable jog mode when leaving a jog screen
+    if (_currentForm == FORM_JOG_X || _currentForm == FORM_JOG_Y || _currentForm == FORM_JOG_Z) {
+        MPGJogManager::Instance().setEnabled(false);
+    }
+
     if (_currentForm == formId) return;
     if (_currentScreen) _currentScreen->onHide();
     _lastForm = _currentForm;
@@ -34,7 +41,17 @@ void ScreenManager::writeForm(uint8_t formId) {
     genie.WriteObject(GENIE_OBJ_FORM, formId, 0);
     _currentScreen = currentScreen();
     if (_currentScreen) _currentScreen->onShow();
+
+    // Reset jog WinButton when entering a jog screen
+    if (_currentForm == FORM_JOG_X) {
+        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_ACTIVATE_JOG, 0);
+    }
+    else if (_currentForm == FORM_JOG_Y) {
+        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_ACTIVATE_JOG_Y_F6, 0);
+    }
+
 }
+
 
 void ScreenManager::ShowSplash() { writeForm(FORM_SPLASH); }
 void ScreenManager::ShowManualMode() { writeForm(FORM_MANUAL_MODE); }

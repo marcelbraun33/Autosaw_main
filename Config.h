@@ -153,7 +153,7 @@
 #define WINBUTTON_CAPTURE_CUT_END_F6       27
 #define WINBUTTON_ACTIVATE_JOG_Y_F6        28
 #define WINBUTTON_SET_WITH_MPG_F6          29
-#define WINBUTTON_CAPTURE_CUT_START_F6     30I am going to show you 
+#define WINBUTTON_CAPTURE_CUT_START_F6     30
 
 // Form7 (Manual Mode)
 #define WINBUTTON_SPINDLE_TOGGLE_F7        31
