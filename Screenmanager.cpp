@@ -14,13 +14,19 @@ ScreenManager& ScreenManager::Instance() {
 ScreenManager::ScreenManager() = default;
 
 void ScreenManager::Init() {
-    // Show splash briefly then homing
+    // Show splash briefly then manual mode
     writeForm(FORM_SPLASH);
     Delay_ms(500);
     ShowManualMode();
 }
 
 void ScreenManager::writeForm(uint8_t formId) {
+    // *** DEBUG LOGGING ***
+    ClearCore::ConnectorUsb.Send("[SM] writeForm: from ");
+    ClearCore::ConnectorUsb.Send(_currentForm);
+    ClearCore::ConnectorUsb.Send(" → ");
+    ClearCore::ConnectorUsb.SendLine(formId);
+
     if (_currentForm == formId) return;
     if (_currentScreen) _currentScreen->onHide();
     _lastForm = _currentForm;

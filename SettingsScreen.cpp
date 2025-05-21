@@ -139,7 +139,9 @@ void SettingsScreen::handleEvent(const genieFrame& e) {
         Serial.println(selector, HEX);
 
         switch (selector) {
-        case 0x01: ScreenManager::Instance().ShowJogX(); break;
+        case 0x01:
+         
+
         case 0x02: ScreenManager::Instance().ShowJogY(); break;
         case 0x04: ScreenManager::Instance().ShowJogZ(); break;
         case 0x08: ScreenManager::Instance().ShowSemiAuto(); break;

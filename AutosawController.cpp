@@ -55,7 +55,6 @@ void AutoSawController::setup() {
   
     ScreenManager::Instance().Init();
     
-    ScreenManager::Instance().ShowManualMode();  // 
 }
 
 void AutoSawController::update() {

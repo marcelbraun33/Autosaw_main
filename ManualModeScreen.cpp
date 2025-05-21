@@ -1,5 +1,3 @@
-
-// ManualModeScreen.cpp
 #include "ManualModeScreen.h"
 #include "UIInputManager.h"
 #include "SettingsManager.h"
@@ -11,29 +9,40 @@
 extern Genie genie;
 
 void ManualModeScreen::onShow() {
+    // 1) Turn the pendant back on so the knob always works
     PendantManager::Instance().SetEnabled(true);
+
+    // 2) Reset its last-known state so it won't immediately retrigger
+    //    until the user actually moves the knob again.
+    PendantManager::Instance().SetLastKnownSelector(
+        PendantManager::Instance().ReadSelector()
+    );
+
+    // 3) Clean up any leftover field edits
     UIInputManager::Instance().unbindField();
 
-    // Sync the spindle toggle button visual state
+    // 4) Sync the spindle toggle button visual state
     bool spindleActive = MotionController::Instance().IsSpindleRunning();
-    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SPINDLE_TOGGLE_F7, spindleActive ? 1 : 0);
+    genie.WriteObject(
+        GENIE_OBJ_WINBUTTON,
+        WINBUTTON_SPINDLE_TOGGLE_F7,
+        spindleActive ? 1 : 0
+    );
 
-    // Reset Set RPM button visual state
-    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SET_RPM_F7, 0);
-    delay(50);
-    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SET_RPM_F7, 0);
-
+    // Finally, run the first update
     update();
 }
 
 void ManualModeScreen::onHide() {
+    // We no longer disable the pendant here — leave it on
+    // (so turning the knob still works on Jog screens, etc.)
+
+    // Just unbind UI fields
     UIInputManager::Instance().unbindField();
-    PendantManager::Instance().SetEnabled(true);
-    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SET_RPM_F7, 0);
 }
 
 void ManualModeScreen::handleEvent(const genieFrame&) {
-    // No editable fields — ignore inputs
+    // No editable fields — ignore
 }
 
 void ManualModeScreen::update() {
