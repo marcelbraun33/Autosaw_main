@@ -1,103 +1,91 @@
-// EStopManager.cpp
+﻿// core/EStopManager.cpp
 #include "EStopManager.h"
 #include "Config.h"
 #include "MotionController.h"
 #include <ClearCore.h>
 
 EStopManager& EStopManager::Instance() {
-    static EStopManager instance;
-    return instance;
+    static EStopManager inst;
+    return inst;
 }
 
-EStopManager::EStopManager() :
-    safetyRelayEnabled(false),
-    resetRequested(false),
-    prevEStopState(false),
-    autoResetEnabled(true)  // Enable auto-reset by default
+EStopManager::EStopManager()
+    : _relayEnabled(false)
+    , _resetRequested(false)
+    , _prevSafeState(true)
+    , _autoReset(true)
 {
 }
 
 void EStopManager::setup() {
-    // Configure E-Stop input pin
+    // Configure E-Stop pin as digital input
     ESTOP_INPUT_PIN.Mode(Connector::INPUT_DIGITAL);
+    // (Optionally configure pull-up if your wiring supports it:
+    //  ESTOP_INPUT_PIN.Pullup(true); )
 
-    // Configure safety relay output pin
+    // Configure safety relay pin as digital output
     SAFETY_RELAY_OUTPUT.Mode(Connector::OUTPUT_DIGITAL);
 
-    // Initial state check - E-Stop is typically Normally Closed (NC)
-    // so HIGH means not activated (safe condition)
-    bool eStopNotActivated = ESTOP_INPUT_PIN.State();
-    prevEStopState = eStopNotActivated;
+    // Read initial state (HIGH = safe on a NC switch)
+    bool safe = ESTOP_INPUT_PIN.State();
+    _prevSafeState = safe;
 
-    // Set initial state of the safety relay
-    safetyRelayEnabled = eStopNotActivated;
-    SAFETY_RELAY_OUTPUT.State(safetyRelayEnabled);
+    // Drive relay accordingly
+    _relayEnabled = safe;
+    SAFETY_RELAY_OUTPUT.State(_relayEnabled);
 
-    // Use ConnectorUsb instead of Serial for ClearCore
-    ClearCore::ConnectorUsb.Send("E-Stop status at startup: ");
-    ClearCore::ConnectorUsb.SendLine(eStopNotActivated ? "Not activated" : "ACTIVATED");
+    ClearCore::ConnectorUsb.Send("EStopManager started, safe? ");
+    ClearCore::ConnectorUsb.SendLine(safe ? "YES" : "NO");
 }
 
 void EStopManager::update() {
-    // Read the current E-Stop state
-    bool eStopNotActivated = ESTOP_INPUT_PIN.State();
+    bool safe = ESTOP_INPUT_PIN.State();
 
-    // If E-Stop is activated (signal goes LOW from the NC switch)
-    if (!eStopNotActivated && safetyRelayEnabled) {
-        // Disable safety relay immediately
-        safetyRelayEnabled = false;
+    // Edge: tripped now, was safe → drop relay immediately
+    if (!safe && _relayEnabled) {
+        _relayEnabled = false;
         SAFETY_RELAY_OUTPUT.State(false);
-        ClearCore::ConnectorUsb.SendLine("E-STOP ACTIVATED - Safety relay disabled");
-
-        // Notify motion controller to perform emergency stop
+        ClearCore::ConnectorUsb.SendLine("!! E-STOP ACTIVATED !!");
         emergencyStop();
     }
-    // Detect E-Stop button release (transition from activated to not activated)
-    else if (eStopNotActivated && !prevEStopState) {
-        ClearCore::ConnectorUsb.SendLine("E-Stop button released");
-
-        // Auto-reset feature - automatically request reset when E-Stop is released
-        if (autoResetEnabled) {
-            requestReset();
-        }
+    // Edge: just released
+    else if (safe && !_prevSafeState) {
+        ClearCore::ConnectorUsb.SendLine("E-STOP button released");
+        if (_autoReset) _resetRequested = true;
     }
-    // If E-Stop is cleared but safety relay is still disabled and reset requested
-    else if (eStopNotActivated && !safetyRelayEnabled && resetRequested) {
-        // Re-enable safety relay when reset is requested
-        safetyRelayEnabled = true;
+    // Safe again and reset was requested → re-energize
+    else if (safe && !_relayEnabled && _resetRequested) {
+        _relayEnabled = true;
+        _resetRequested = false;
         SAFETY_RELAY_OUTPUT.State(true);
-        resetRequested = false;
-        ClearCore::ConnectorUsb.SendLine("E-Stop cleared - Safety relay re-enabled");
+        ClearCore::ConnectorUsb.SendLine("Safety relay re-enabled");
     }
 
-    // Save current state for edge detection
-    prevEStopState = eStopNotActivated;
+    _prevSafeState = safe;
 }
 
 bool EStopManager::isActivated() const {
+    // Pin LOW = tripped on a NC switch
     return !ESTOP_INPUT_PIN.State();
 }
 
 bool EStopManager::isSafetyRelayEnabled() const {
-    return safetyRelayEnabled;
+    return _relayEnabled;
 }
 
 void EStopManager::requestReset() {
-    if (!isActivated()) {
-        resetRequested = true;
-        ClearCore::ConnectorUsb.SendLine("Reset requested - will re-enable if E-Stop is clear");
-    }
+    if (!isActivated()) _resetRequested = true;
 }
 
-void EStopManager::setAutoReset(bool enabled) {
-    autoResetEnabled = enabled;
-}
-
-bool EStopManager::isAutoResetEnabled() const {
-    return autoResetEnabled;
+void EStopManager::setAutoReset(bool on) {
+    _autoReset = on;
 }
 
 void EStopManager::emergencyStop() {
-    // Call stop spindle on the motion controller
+    // make sure your MotionController has a StopSpindle()
     MotionController::Instance().StopSpindle();
+    // if you have axis stops, call them too:
+    // MotionController::Instance().StopFence();
+    // MotionController::Instance().StopTable();
+    // MotionController::Instance().StopRotary();
 }

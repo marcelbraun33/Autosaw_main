@@ -17,7 +17,7 @@ void ScreenManager::Init() {
     // Show splash briefly then homing
     writeForm(FORM_SPLASH);
     Delay_ms(500);
-    ShowHoming();
+    ShowManualMode();
 }
 
 void ScreenManager::writeForm(uint8_t formId) {

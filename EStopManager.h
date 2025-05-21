@@ -1,3 +1,4 @@
+// core/EStopManager.h
 #pragma once
 #include <ClearCore.h>
 
@@ -5,29 +6,25 @@ class EStopManager {
 public:
     static EStopManager& Instance();
 
+    /// Call once from AutoSawController::setup()
     void setup();
+
+    /// Call once per loop, before any motion
     void update();
 
-    // Check if E-Stop is currently activated
     bool isActivated() const;
-
-    // Check if safety relay is enabled
     bool isSafetyRelayEnabled() const;
 
-    // Request system reset after E-Stop condition cleared
+    /// If you want to defer auto-reset until later
     void requestReset();
-    
-    // Configure auto-reset behavior
-    void setAutoReset(bool enabled);
-    bool isAutoResetEnabled() const;
+    void setAutoReset(bool on);
 
 private:
     EStopManager();
-
     void emergencyStop();
 
-    bool safetyRelayEnabled;
-    bool resetRequested;
-    bool prevEStopState;       // Previous E-Stop state for edge detection
-    bool autoResetEnabled;     // Whether to auto-reset when E-Stop is released
+    bool _relayEnabled;
+    bool _resetRequested;
+    bool _prevSafeState;
+    bool _autoReset;
 };

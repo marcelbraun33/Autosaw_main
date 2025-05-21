@@ -33,6 +33,16 @@ void AutoSawController::setup() {
 
     // Motion hardware
     MotionController::Instance().setup();
+    // --- AXIS TEST — drive +1 inch at 50% speed ---
+    Serial.println("AXIS TEST: Move X +1\" at 50%");
+    MotionController::Instance().moveToWithRate(AXIS_X, 1.0f, 0.5f);
+    // wait for it...
+    while (MotionController::Instance().isAxisMoving(AXIS_X)) {
+        // let your Update() call in loop() tick the state machines
+        delay(10);
+    }
+    Serial.println("AXIS TEST COMPLETE");
+
 
     // Pendant and UI input
     PendantManager::Instance().Init();
@@ -42,10 +52,10 @@ void AutoSawController::setup() {
     SettingsManager::Instance().load();
     FileManager::Instance();
 
-    // Initialize screens and perform startup homing
+  
     ScreenManager::Instance().Init();
-    // Immediately show homing screen to wait on MSP "Home on Enable"
-    ScreenManager::Instance().ShowHoming();
+    
+    ScreenManager::Instance().ShowManualMode();  // 
 }
 
 void AutoSawController::update() {

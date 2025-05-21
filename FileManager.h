@@ -1,16 +1,23 @@
-// FileManager.h
+// core/FileManager.h
 #pragma once
 
-class Settings; // Forward declaration if not including the full header
+#include <ClearCore.h>
+#include <SPI.h>
+#include <SD.h>
+#include "SettingsManager.h"            // Brings in the `Settings` struct
 
 class FileManager {
 public:
     static FileManager& Instance();
-    
-    bool saveSettings(const Settings& s);
+
+    /// Mount the SD card
+    bool init();
+
+    /// Read/write the settings CSV file
     bool loadSettings(Settings& s);
-    
+    bool saveSettings(const Settings& s);
+
 private:
     FileManager() = default;
-    // Add any private members needed
+    static constexpr const char* SETTINGS_FILE = "/settings.txt";
 };

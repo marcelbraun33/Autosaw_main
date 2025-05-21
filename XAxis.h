@@ -27,7 +27,7 @@ public:
     bool IsMoving() const;
     bool IsHomed() const;
     bool IsHoming() const;
-
+    void ClearAlerts();
 private:
     // Homing state machine
     enum class HomingState {

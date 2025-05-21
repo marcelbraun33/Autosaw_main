@@ -30,6 +30,7 @@ public:
 
     // Legacy compatibility
     void Home() { StartHoming(); }
+    void ClearAlerts();
 
 private:
     // Homing state machine

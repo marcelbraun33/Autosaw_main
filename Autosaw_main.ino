@@ -1,4 +1,5 @@
-﻿#include <ClearCore.h>
+﻿#include <SD.h>
+#include <ClearCore.h>
 #include <genieArduinoDEV.h>
 #include "Config.h"
 #include "AutoSawController.h"

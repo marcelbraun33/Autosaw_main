@@ -1,16 +1,33 @@
-// Spindle.cpp
+﻿// Spindle.cpp
 #include "Spindle.h"
 #include "Config.h"
 #include <ClearCore.h>
 
 Spindle::Spindle() : running(false), commandedRPM(0.0f) {}
 
+// motion/Spindle.cpp
+#include <ClearCore.h>
+#include "Spindle.h"
+#include "Config.h"
+
 void Spindle::Setup() {
-    // Motor mode configuration is now handled in AutosawController::setup()
-    // Just initialize the motor's state
+    // Put both M0 & M1 into velocity mode globally (optional — but matches example)
+    MotorMgr.MotorInputClocking(MotorManager::CLOCK_RATE_NORMAL);
+    MotorMgr.MotorModeSet(
+        MotorManager::MOTOR_M0M1,
+        Connector::CPM_MODE_A_DIRECT_B_PWM
+    );
+    -
+
+        MotorMgr.MotorModeSet(MotorManager::MOTOR_M0M1,
+        Connector::CPM_MODE_A_DIRECT_B_PWM
+    );
+
+    // now idle the outputs
     MOTOR_SPINDLE.EnableRequest(false);
     MOTOR_SPINDLE.MotorInAState(true);
     MOTOR_SPINDLE.MotorInBDuty(0);
+
     ClearCore::ConnectorUsb.SendLine("[Spindle] Setup complete");
 }
 

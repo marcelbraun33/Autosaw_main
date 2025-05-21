@@ -18,6 +18,7 @@ class MotionController {
 public:
     /// Singleton access
     static MotionController& Instance();
+    void ClearAxisAlerts(); 
 
     /// Initialize spindle and axes (non-blocking)
     void setup();
@@ -49,6 +50,10 @@ public:
         bool xHomed, yHomed, zHomed;
     };
     MotionStatus getStatus() const;
+    // In public section:
+    bool StartHomingAxis(AxisId axis);
+    bool StartHomingAll();  // optional convenience for full-machine homing
+
 
 private:
     MotionController();
