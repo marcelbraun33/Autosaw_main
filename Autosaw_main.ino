@@ -112,6 +112,33 @@ void myGenieEventHandler() {
             ClearCore::ConnectorUsb.Send(index);
             ClearCore::ConnectorUsb.SendLine();
             break;
+            // ─── Jog Y Enable ──────────────────────────────────────────
+        case WINBUTTON_ACTIVATE_JOG_Y_F6: {
+            ClearCore::ConnectorUsb.SendLine("[EV] Activate Y Jog button");
+            if (ScreenManager::Instance().currentForm() == FORM_JOG_Y) {
+                bool enabled = !MPGJogManager::Instance().isEnabled();
+                MPGJogManager::Instance().setEnabled(enabled);
+                MPGJogManager::Instance().setAxis(AXIS_Y);
+
+                // capture current range knobs
+                int range = JOG_MULTIPLIER_X1;
+                if (RANGE_PIN_X10.State())  range = JOG_MULTIPLIER_X10;
+                if (RANGE_PIN_X100.State()) range = JOG_MULTIPLIER_X100;
+                MPGJogManager::Instance().setRangeMultiplier(range);
+
+                // ** reset the encoder baseline so no phantom jump **
+                UIInputManager::Instance().resetRaw();
+
+                // reflect new state on the UI button
+                genie.WriteObject(
+                    GENIE_OBJ_WINBUTTON,
+                    WINBUTTON_ACTIVATE_JOG_Y_F6,
+                    enabled ? 1 : 0
+                );
+            }
+            return;
+        }
+
         }
     }
 

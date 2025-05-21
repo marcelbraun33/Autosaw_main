@@ -23,21 +23,32 @@ void YAxis::Setup() {
     // Configure HLFB and motion limits
     _motor->HlfbMode(MotorDriver::HLFB_MODE_HAS_BIPOLAR_PWM);
     _motor->HlfbCarrier(MotorDriver::HLFB_CARRIER_482_HZ);
+
+    // Ensure MAX_VELOCITY and MAX_ACCELERATION are the same as X-axis
     _motor->VelMax(MAX_VELOCITY);
     _motor->AccelMax(MAX_ACCELERATION);
 
-    // Clear any existing alerts first
-    if (_motor->StatusReg().bit.AlertsPresent) {
-        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Clearing initial alerts");
-        _motor->ClearAlerts();
-    }
+    // Clear any existing alerts - use the same method as X-axis
+    ClearAlerts();
 
-    // Enable driver - this is critical for proper initialization
+    // Enable driver (only once) - match X-axis approach
     _motor->EnableRequest(true);
 
-    // No need to block on HLFB here - User Seeks Home mode should start with HLFB not asserted
-    ClearCore::ConnectorUsb.SendLine("[Y-Axis] Setup complete");
+    // Wait for HLFB with timeout - add this to match X-axis
+    uint32_t startTime = ClearCore::TimingMgr.Milliseconds();
+    ClearCore::ConnectorUsb.Send("[Y-Axis] Waiting for HLFB...");
+    while (_motor->HlfbState() != MotorDriver::HLFB_ASSERTED) {
+        if (ClearCore::TimingMgr.Milliseconds() - startTime > 5000) {  // 5 second timeout
+            ClearCore::ConnectorUsb.SendLine(" TIMEOUT");
+            break;
+        }
+    }
+    if (_motor->HlfbState() == MotorDriver::HLFB_ASSERTED) {
+        ClearCore::ConnectorUsb.SendLine(" ASSERTED");
+    }
+
     _isSetup = true;
+    ClearCore::ConnectorUsb.SendLine("[Y-Axis] Setup complete");
 }
 
 void YAxis::ClearAlerts() {
@@ -64,9 +75,14 @@ void YAxis::ClearAlerts() {
         }
         if (_motor->AlertReg().bit.MotorFaulted) {
             ClearCore::ConnectorUsb.SendLine(" - MotorFaulted");
+            // If motor is faulted, cycle enable - ADD THIS SECTION
+            _motor->EnableRequest(false);
+            Delay_ms(100);
+            _motor->EnableRequest(true);
+            Delay_ms(100);
         }
 
-        // Clear alerts without cycling enable
+        // Clear any remaining alerts
         _motor->ClearAlerts();
         ClearCore::ConnectorUsb.SendLine("[Y-Axis] Alerts cleared");
     }
@@ -75,6 +91,48 @@ void YAxis::ClearAlerts() {
     }
 }
 
+bool YAxis::MoveTo(float positionInches, float velocityScale) {
+    if (!_isSetup) {
+        ClearCore::ConnectorUsb.SendLine("[Y-Axis] MoveTo failed: not setup");
+        return false;
+    }
+
+    // Add alert check and clear before moving - like X-axis
+    if (_motor->StatusReg().bit.AlertsPresent) {
+        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Alerts present before move, clearing...");
+        ClearAlerts();
+    }
+
+    // Allow movement during certain homing states or when not homing
+    if (_homingState != HomingState::Idle &&
+        _homingState != HomingState::Complete &&
+        _homingState != HomingState::Failed) {
+        ClearCore::ConnectorUsb.Send("[Y-Axis] MoveTo failed: in homing state ");
+        ClearCore::ConnectorUsb.SendLine(static_cast<int>(_homingState));
+        return false;
+    }
+
+    _targetPos = positionInches;
+    _isMoving = true;
+
+    int32_t targetSteps = static_cast<int32_t>(_targetPos * _stepsPerInch);
+    int32_t currentSteps = _motor->PositionRefCommanded();
+    int32_t delta = targetSteps - currentSteps;
+
+    // Try boosting velocity for Y-axis if needed
+    float boostFactor = 1.5f; // Temporary boost to help diagnose speed issues
+    _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * velocityScale * boostFactor));
+
+    ClearCore::ConnectorUsb.Send("[Y-Axis] MoveTo: ");
+    ClearCore::ConnectorUsb.Send(positionInches);
+    ClearCore::ConnectorUsb.Send(" inches, ");
+    ClearCore::ConnectorUsb.Send(delta);
+    ClearCore::ConnectorUsb.Send(" steps, VelMax=");
+    ClearCore::ConnectorUsb.SendLine(static_cast<uint32_t>(MAX_VELOCITY * velocityScale * boostFactor));
+
+    _motor->Move(delta);
+    return true;
+}
 bool YAxis::StartHoming() {
     if (!_isSetup) {
         ClearCore::ConnectorUsb.SendLine("[Y-Axis] Cannot start homing: not setup");
@@ -122,11 +180,14 @@ void YAxis::processHoming() {
     ClearCore::ConnectorUsb.Send("[Y-Axis] HLFB State: ");
     ClearCore::ConnectorUsb.SendLine(_motor->HlfbState() == MotorDriver::HLFB_ASSERTED ? "ASSERTED" : "NOT ASSERTED");
 
-    // Handle alerts but don't exit homing - just clear them and continue
+    // YAxis.cpp - processHoming()
+  // Handle alerts the same way X-axis does
     if (_motor->StatusReg().bit.AlertsPresent) {
-        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Alert present during homing, clearing");
-        _motor->ClearAlerts();
+        ClearCore::ConnectorUsb.SendLine("[Y-Axis] ALERT — homing canceled");
+        _homingState = HomingState::Failed;
+        return;
     }
+
 
     switch (_homingState) {
     case HomingState::ApproachFast:
@@ -187,45 +248,6 @@ void YAxis::processHoming() {
     default:
         break;
     }
-}
-
-bool YAxis::MoveTo(float positionInches, float velocityScale) {
-    if (!_isSetup) {
-        ClearCore::ConnectorUsb.SendLine("[Y-Axis] MoveTo failed: not setup");
-        return false;
-    }
-
-    // Clear any alerts before moving
-    if (_motor->StatusReg().bit.AlertsPresent) {
-        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Clearing alerts before move");
-        _motor->ClearAlerts();
-    }
-
-    // Allow movement during certain homing states or when not homing
-    if (_homingState != HomingState::Idle &&
-        _homingState != HomingState::Complete &&
-        _homingState != HomingState::Failed) {
-        ClearCore::ConnectorUsb.Send("[Y-Axis] MoveTo failed: in homing state ");
-        ClearCore::ConnectorUsb.SendLine(static_cast<int>(_homingState));
-        return false;
-    }
-
-    _targetPos = positionInches;
-    _isMoving = true;
-
-    int32_t targetSteps = static_cast<int32_t>(_targetPos * _stepsPerInch);
-    int32_t currentSteps = _motor->PositionRefCommanded();
-    int32_t delta = targetSteps - currentSteps;
-
-    _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * velocityScale));
-    ClearCore::ConnectorUsb.Send("[Y-Axis] MoveTo: ");
-    ClearCore::ConnectorUsb.Send(positionInches);
-    ClearCore::ConnectorUsb.Send(" inches, ");
-    ClearCore::ConnectorUsb.Send(delta);
-    ClearCore::ConnectorUsb.SendLine(" steps");
-
-    _motor->Move(delta);
-    return true;
 }
 
 void YAxis::Stop() {

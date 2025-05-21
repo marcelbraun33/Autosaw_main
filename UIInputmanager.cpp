@@ -84,21 +84,24 @@ void UIInputManager::update() {
     }
 
     // jog mode?
-    if (MPGJogManager::Instance().isEnabled()
-        && ScreenManager::Instance().currentForm() == FORM_JOG_X) {
+    if (MPGJogManager::Instance().isEnabled()) {
+        uint8_t currentForm = ScreenManager::Instance().currentForm();
 
-        // First update the range
-        int range = JOG_MULTIPLIER_X1;
-        if (RANGE_PIN_X10.State())  range = JOG_MULTIPLIER_X10;
-        if (RANGE_PIN_X100.State()) range = JOG_MULTIPLIER_X100;
-        MPGJogManager::Instance().setRangeMultiplier(range);
+        // Support both X and Y axis jogging based on the current screen
+        if (currentForm == FORM_JOG_X || currentForm == FORM_JOG_Y) {
+            // First update the range
+            int range = JOG_MULTIPLIER_X1;
+            if (RANGE_PIN_X10.State())  range = JOG_MULTIPLIER_X10;
+            if (RANGE_PIN_X100.State()) range = JOG_MULTIPLIER_X100;
+            MPGJogManager::Instance().setRangeMultiplier(range);
 
-        // Then handle the encoder movement
-        int32_t rawDelta = ClearCore::EncoderIn.Position() - _lastRaw;
-        int32_t clicks = rawDelta / countsPerClick;
-        if (clicks != 0) {
-            MPGJogManager::Instance().onEncoderDelta(clicks);
-            _lastRaw = ClearCore::EncoderIn.Position();
+            // Then handle the encoder movement
+            int32_t rawDelta = ClearCore::EncoderIn.Position() - _lastRaw;
+            int32_t clicks = rawDelta / countsPerClick;
+            if (clicks != 0) {
+                MPGJogManager::Instance().onEncoderDelta(clicks);
+                _lastRaw = ClearCore::EncoderIn.Position();
+            }
         }
     }
 }

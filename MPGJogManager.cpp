@@ -96,21 +96,13 @@ void MPGJogManager::updateRangeFromInputs() {
     }
 }
 
+// MPGJogManager.cpp - update the onEncoderDelta method
+
 void MPGJogManager::onEncoderDelta(int deltaClicks) {
-    if (!_initialized || !_enabled)
+    if (!_initialized || !_enabled || deltaClicks == 0)
         return;
 
-    // Special handling for X1 mode - there might be an issue with deltaClicks sign
-    if (_range == JOG_MULTIPLIER_X1) {
-        // For X1 mode, invert the sign if we're only getting movement in one direction
-        deltaClicks = -deltaClicks;  // Try this to reverse direction in X1 mode
-
-        // Skip zero movements
-        if (deltaClicks == 0) {
-            return;
-        }
-    }
-
+ 
     // inches per click for each range
     float stepInches;
     switch (_range) {
@@ -134,6 +126,8 @@ void MPGJogManager::onEncoderDelta(int deltaClicks) {
     case JOG_MULTIPLIER_X100: velocityScale = 0.9f; break;
     default:                  velocityScale = 0.5f; break;
     }
+
+
 
     // Only log meaningful movement for debugging
     if (abs(deltaClicks) > 0) {
