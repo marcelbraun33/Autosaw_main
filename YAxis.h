@@ -53,4 +53,5 @@ private:
 
     // Homing helper
     HomingHelper* _homingHelper;
+    bool _hasBeenHomed = false;    // gets flipped true when homing succeeds
 };

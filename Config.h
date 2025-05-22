@@ -42,6 +42,8 @@
 #define FENCE_STEPS_PER_INCH      4065.0f
 #define TABLE_STEPS_PER_INCH      4065.0f
 #define ROTARY_STEPS_PER_DEGREE   11.3778f  // Adjust as needed
+#define MAX_X_INCHES 7.0f   // for example
+#define MAX_Y_INCHES 7.0f   // your table depth
 
 // === RPM Control ===
 #define SPINDLE_MAX_RPM       4000.0f

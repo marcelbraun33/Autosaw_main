@@ -1,33 +1,93 @@
+
+// HomingHelper.cpp
 #include "HomingHelper.h"
-#include "ScreenManager.h"  // for redirect on total timeout
+#include "ScreenManager.h"
+#include <ClearCore.h>
 
 HomingHelper::HomingHelper(const HomingParams& p)
-    : _p(p), _state(State::Idle), _stamp(0) {
+    : _p(p)
+    , _state(State::Idle)
+    , _stamp(0)
+    , _startTime(0)
+    , _lastState(State::Idle)
+    , _hasBeenHomed(false)
+{
+    // Ensure fast phase speed is tuned relative to slow
+    _p.fastVel = static_cast<uint32_t>(_p.slowVel * 2);
 }
 
 bool HomingHelper::start() {
     if (_state != State::Idle) return false;
-    // clear any alerts first
     if (_p.motor->StatusReg().bit.AlertsPresent) {
         _p.motor->ClearAlerts();
     }
-    _stamp = ClearCore::TimingMgr.Milliseconds();
+    _startTime = _stamp = ClearCore::TimingMgr.Milliseconds();
+
+    if (_hasBeenHomed) {
+        // Soft-limit rehome: move from current position back to zero
+        int32_t currentSteps = _p.motor->PositionRefCommanded();
+        if (currentSteps != 0) {
+            // use three times the slow approach speed for rehome
+            uint32_t rehomeSpeed = _p.slowVel * 3;
+            _p.motor->VelMax(rehomeSpeed);
+            _p.motor->Move(-currentSteps);
+            _state = State::Finalize;
+        }
+        else {
+            // already at zero
+            _p.motor->PositionRefSet(0);
+            _state = State::Idle;
+        }
+        return true;
+    }
+
+    // First true homing sequence
     _state = State::FastApproach;
     return true;
 }
 
 void HomingHelper::process() {
     uint32_t now = ClearCore::TimingMgr.Milliseconds();
-    if (_state == State::Idle) return;
+    if (_state == State::Idle || _state == State::Failed) return;
 
-    // global timeout
+    // Global timeout
     if (now - _stamp > _p.timeoutMs) {
-        // give user feedback
-        ClearCore::ConnectorUsb.SendLine("[HomingHelper] TIMEOUT, aborting");
-        // go back to manual screen
+        ClearCore::ConnectorUsb.SendLine("[Homing] TIMEOUT – aborting");
         ScreenManager::Instance().ShowManualMode();
         _state = State::Failed;
         return;
+    }
+
+    // Log transitions
+    if (_state != _lastState) {
+        uint32_t elapsed = now - _startTime;
+        switch (_state) {
+        case State::FastApproach:
+            ClearCore::ConnectorUsb.Send("[Homing][+"); ClearCore::ConnectorUsb.Send(elapsed);
+            ClearCore::ConnectorUsb.SendLine("ms] FastApproach"); break;
+        case State::Dwell:
+            ClearCore::ConnectorUsb.Send("[Homing][+"); ClearCore::ConnectorUsb.Send(elapsed);
+            ClearCore::ConnectorUsb.SendLine("ms] Dwell"); break;
+        case State::SlowApproach:
+            ClearCore::ConnectorUsb.Send("[Homing][+"); ClearCore::ConnectorUsb.Send(elapsed);
+            ClearCore::ConnectorUsb.SendLine("ms] SlowApproach"); break;
+        case State::WaitForStop:
+            ClearCore::ConnectorUsb.Send("[Homing][+"); ClearCore::ConnectorUsb.Send(elapsed);
+            ClearCore::ConnectorUsb.SendLine("ms] WaitForStop"); break;
+        case State::Backoff:
+            ClearCore::ConnectorUsb.Send("[Homing][+"); ClearCore::ConnectorUsb.Send(elapsed);
+            ClearCore::ConnectorUsb.SendLine("ms] Backoff"); break;
+        case State::Finalize:
+            ClearCore::ConnectorUsb.Send("[Homing][+"); ClearCore::ConnectorUsb.Send(elapsed);
+            ClearCore::ConnectorUsb.SendLine("ms] Finalize"); break;
+        default: break;
+        }
+        _lastState = _state;
+    }
+
+    // Clear alerts
+    if (_p.motor->StatusReg().bit.AlertsPresent) {
+        _p.motor->ClearAlerts();
     }
 
     switch (_state) {
@@ -48,7 +108,6 @@ void HomingHelper::process() {
         break;
 
     case State::SlowApproach:
-        // nothing here—just waiting to hit HLFB
         _state = State::WaitForStop;
         break;
 
@@ -70,15 +129,12 @@ void HomingHelper::process() {
     case State::Finalize:
         if (_p.motor->StepsComplete()) {
             _p.motor->PositionRefSet(0);
+            _hasBeenHomed = true;
             _state = State::Idle;
         }
         break;
 
-    case State::Failed:
-    case State::Idle:
-    default:
-        // do nothing
-        break;
+    default: break;
     }
 }
 
