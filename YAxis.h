@@ -2,10 +2,12 @@
 #pragma once
 
 #include <ClearCore.h>
+#include "HomingHelper.h"
 
 class YAxis {
 public:
     YAxis();
+    ~YAxis();
 
     // Initialize motor driver and limits
     void Setup();
@@ -33,23 +35,6 @@ public:
     void ClearAlerts();
 
 private:
-    // Homing state machine
-    enum class HomingState {
-        Idle,
-        ApproachFast,
-        ApproachSlow,
-        WaitingForHardStop,
-        Backoff,
-        Complete,
-        Failed
-    } _homingState = HomingState::Idle;
-
-    // Homing parameters
-    static constexpr float HOMING_BACKOFF_INCH = 0.125f;
-    static constexpr uint32_t HOMING_TIMEOUT_MS = 30000;
-    static constexpr float HOME_VEL_FAST = 5000.0f;
-    static constexpr float HOME_VEL_SLOW = 1000.0f;
-
     // Internal state
     bool    _isSetup = false;
     bool    _isMoving = false;
@@ -60,10 +45,12 @@ private:
     const float _stepsPerInch;
     MotorDriver* const _motor;    // Pointer to ClearCore motor driver
 
-    // Homing helpers
-    uint32_t _homingStartTime = 0;
-    int32_t  _backoffSteps = 0;
+    // Homing parameters
+    static constexpr float HOMING_BACKOFF_INCH = 0.125f;
+    static constexpr uint32_t HOMING_TIMEOUT_MS = 30000;
+    static constexpr float HOME_VEL_FAST = 5000.0f;
+    static constexpr float HOME_VEL_SLOW = 1000.0f;
 
-    void processHoming();
+    // Homing helper
+    HomingHelper* _homingHelper;
 };
-

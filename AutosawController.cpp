@@ -1,4 +1,3 @@
-// === AutoSawController.cpp ===
 #include <ClearCore.h>
 #include <genieArduinoDEV.h>
 #include "Config.h"
@@ -12,9 +11,8 @@
 #include "MotionController.h"
 #include "MPGJogManager.h"
 
-
-extern Genie genie;  // main sketch defines this
-extern void myGenieEventHandler();  // forward-declare the event handler from the sketch
+extern Genie genie;                     // main sketch defines this
+extern void myGenieEventHandler();      // forward-declare event handler
 
 AutoSawController& AutoSawController::Instance() {
     static AutoSawController inst;
@@ -35,16 +33,6 @@ void AutoSawController::setup() {
 
     // Motion hardware
     MotionController::Instance().setup();
-    // --- AXIS TEST — drive +1 inch at 50% speed ---
-    Serial.println("AXIS TEST: Move X +1\" at 50%");
-    MotionController::Instance().moveToWithRate(AXIS_X, 1.0f, 0.5f);
-    // wait for it...
-    while (MotionController::Instance().isAxisMoving(AXIS_X)) {
-        // let your Update() call in loop() tick the state machines
-        delay(10);
-    }
-    Serial.println("AXIS TEST COMPLETE");
-
 
     // Pendant and UI input
     PendantManager::Instance().Init();
@@ -54,15 +42,17 @@ void AutoSawController::setup() {
     SettingsManager::Instance().load();
     FileManager::Instance();
 
-  
+    // UI startup
     ScreenManager::Instance().Init();
+
+    // Jog manager
     MPGJogManager::Instance().setup();
-    
 }
 
 void AutoSawController::update() {
     // Process touch and button events
     genie.DoEvents();
+
     // E-stop and pendant
     EStopManager::Instance().update();
     PendantManager::Instance().Update();

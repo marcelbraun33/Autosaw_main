@@ -85,6 +85,7 @@
     <ClCompile Include="CutSequenceController.cpp" />
     <ClCompile Include="EStopManager.cpp" />
     <ClCompile Include="FileManager.cpp" />
+    <ClCompile Include="HomingHelper.cpp" />
     <ClCompile Include="HomingScreen.cpp" />
     <ClCompile Include="JogXScreen.cpp" />
     <ClCompile Include="JogYScreen.cpp" />
@@ -120,6 +121,7 @@
     <ClInclude Include="CutSequenceController.h" />
     <ClInclude Include="EStopManager.h" />
     <ClInclude Include="FileManager.h" />
+    <ClInclude Include="HomingHelper.h" />
     <ClInclude Include="HomingScreen.h" />
     <ClInclude Include="JogXScreen.h" />
     <ClInclude Include="JogYScreen.h" />

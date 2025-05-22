@@ -2,10 +2,12 @@
 #pragma once
 
 #include <ClearCore.h>
+#include "HomingHelper.h"
 
 class XAxis {
 public:
     XAxis();
+    ~XAxis();  // Add destructor to clean up HomingHelper
 
     // Initialize motor driver and limits
     void Setup();
@@ -28,38 +30,24 @@ public:
     bool IsHomed() const;
     bool IsHoming() const;
     void ClearAlerts();
+
 private:
-    // Homing state machine
-    enum class HomingState {
-        Idle,
-        ApproachFast,
-        ApproachSlow,
-        WaitingForHardStop,
-        Backoff,
-        Complete,
-        Failed
-    } _homingState = HomingState::Idle;
-
-    // Homing parameters
-    static constexpr float HOMING_BACKOFF_INCH = 0.125f;
-    static constexpr uint32_t HOMING_TIMEOUT_MS = 30000;
-    static constexpr float HOME_VEL_FAST = 5000.0f;
-    static constexpr float HOME_VEL_SLOW = 1000.0f;
-
     // Internal state
     bool    _isSetup = false;
     bool    _isMoving = false;
     bool    _isHomed = false;
     float   _currentPos = 0.0f;   // Inches
-    float   _targetPos = 0.0f;   // Inches
-    float   _torquePct = 0.0f;   // 0–100%
+    float   _targetPos = 0.0f;    // Inches
+    float   _torquePct = 0.0f;    // 0–100%
     const float _stepsPerInch;
-    MotorDriver* const _motor;      // Pointer to ClearCore motor driver
+    MotorDriver* const _motor;    // Pointer to ClearCore motor driver
 
-    // Homing SM helpers
-    uint32_t _homingStartTime = 0;
-    int32_t  _backoffSteps = 0;
+    // Homing parameters - keep these for compatibility with HomingHelper
+    static constexpr float HOMING_BACKOFF_INCH = 0.125f;
+    static constexpr uint32_t HOMING_TIMEOUT_MS = 30000;
+    static constexpr float HOME_VEL_FAST = 5000.0f;
+    static constexpr float HOME_VEL_SLOW = 1000.0f;
 
-    void processHoming();
+    // Homing helper
+    HomingHelper* _homingHelper;
 };
-

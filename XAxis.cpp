@@ -1,4 +1,4 @@
-// core/XAxis.cpp
+// XAxis.cpp
 #include "XAxis.h"
 #include "Config.h"
 #include "ClearCore.h"
@@ -11,12 +11,29 @@ XAxis::XAxis()
     , _motor(&MOTOR_FENCE_X)
     , _isSetup(false)
     , _isHomed(false)
-    , _homingState(HomingState::Idle)
-    , _currentPos(0.0f)
     , _isMoving(false)
+    , _currentPos(0.0f)
     , _torquePct(0.0f)
-    , _backoffSteps(0)
 {
+    // Set up homing parameters
+    HomingParams params;
+    params.motor = _motor;
+    params.stepsPerUnit = _stepsPerInch;
+    params.fastVel = HOME_VEL_FAST;
+    params.slowVel = HOME_VEL_SLOW;
+    params.dwellMs = 2000;
+    params.backoffUnits = HOMING_BACKOFF_INCH;
+    params.timeoutMs = HOMING_TIMEOUT_MS;
+
+    // Create the HomingHelper with our parameters
+    _homingHelper = new HomingHelper(params);
+}
+
+XAxis::~XAxis() {
+    if (_homingHelper) {
+        delete _homingHelper;
+        _homingHelper = nullptr;
+    }
 }
 
 void XAxis::Setup() {
@@ -75,9 +92,9 @@ void XAxis::ClearAlerts() {
             ClearCore::ConnectorUsb.SendLine(" - MotorFaulted");
             // If motor is faulted, cycle enable
             _motor->EnableRequest(false);
-            Delay_ms(100);  // Fixed: Removed ClearCore namespace
+            Delay_ms(100);
             _motor->EnableRequest(true);
-            Delay_ms(100);  // Fixed: Removed ClearCore namespace
+            Delay_ms(100);
         }
 
         // Clear any remaining alerts
@@ -101,17 +118,16 @@ bool XAxis::StartHoming() {
         ClearAlerts();
     }
 
-    // Only proceed if homing state is idle
-    if (_homingState != HomingState::Idle) {
-        ClearCore::ConnectorUsb.SendLine("[X-Axis] Cannot start homing: already homing");
-        return false;
+    // Start homing with HomingHelper
+    bool success = _homingHelper->start();
+    if (success) {
+        _isHomed = false; // Will be set to true when homing completes
+        ClearCore::ConnectorUsb.SendLine("[X-Axis] Homing sequence started");
     }
-
-    _isHomed = false;
-    _homingStartTime = ClearCore::TimingMgr.Milliseconds();
-    _homingState = HomingState::ApproachFast;
-    ClearCore::ConnectorUsb.SendLine("[X-Axis] Homing sequence started");
-    return true;
+    else {
+        ClearCore::ConnectorUsb.SendLine("[X-Axis] Cannot start homing: already busy");
+    }
+    return success;
 }
 
 void XAxis::Update() {
@@ -123,84 +139,14 @@ void XAxis::Update() {
     _isMoving = !_motor->StepsComplete();
     _torquePct = GetTorquePercent();
 
-    // Only run homing state machine when requested
-    if (_homingState != HomingState::Idle) {
-        processHoming();
+    // Process homing if active
+    if (_homingHelper->isBusy()) {
+        _homingHelper->process();
     }
-}
-
-void XAxis::processHoming() {
-    uint32_t now = ClearCore::TimingMgr.Milliseconds();
-
-    // Log actual HLFB state for debugging
-    ClearCore::ConnectorUsb.Send("[X-Axis] HLFB State: ");
-    ClearCore::ConnectorUsb.SendLine(_motor->HlfbState() == MotorDriver::HLFB_ASSERTED ? "ASSERTED" : "NOT ASSERTED");
-
-    // Handle alerts that could prevent motion
-    if (_motor->StatusReg().bit.AlertsPresent) {
-        ClearCore::ConnectorUsb.SendLine("[X-Axis] ALERT — homing canceled");
-        _homingState = HomingState::Failed;
-        return;
-    }
-
-    switch (_homingState) {
-    case HomingState::ApproachFast:
-        ClearCore::ConnectorUsb.SendLine("[X-Axis] Starting fast approach");
-        _motor->VelMax(HOME_VEL_FAST);
-        _motor->MoveVelocity(static_cast<int32_t>(-HOME_VEL_FAST));
-        _homingStartTime = now;
-        _homingState = HomingState::ApproachSlow;
-        break;
-
-    case HomingState::ApproachSlow:
-        if (now - _homingStartTime >= 2000) {
-            ClearCore::ConnectorUsb.SendLine("[X-Axis] Starting slow approach");
-            _motor->VelMax(HOME_VEL_SLOW);
-            _motor->MoveVelocity(static_cast<int32_t>(-HOME_VEL_SLOW));
-            _homingStartTime = now;
-            _homingState = HomingState::WaitingForHardStop;
-        }
-        break;
-
-    case HomingState::WaitingForHardStop:
-        // Wait for HLFB to assert (indicating contact with hardstop)
-        if (_motor->HlfbState() == MotorDriver::HLFB_ASSERTED) {
-            ClearCore::ConnectorUsb.SendLine("[X-Axis] HLFB asserted, stopping move");
-            _motor->MoveStopAbrupt();
-            Delay_ms(20);  // Fixed: Removed ClearCore namespace
-
-            // Initiate backoff move
-            _backoffSteps = static_cast<int32_t>(HOMING_BACKOFF_INCH * _stepsPerInch);
-            ClearCore::ConnectorUsb.Send("[X-Axis] Starting backoff move of ");
-            ClearCore::ConnectorUsb.Send(_backoffSteps);
-            ClearCore::ConnectorUsb.SendLine(" steps");
-
-            _motor->Move(_backoffSteps);
-            _homingState = HomingState::Complete;
-        }
-        else if (now - _homingStartTime > HOMING_TIMEOUT_MS) {
-            ClearCore::ConnectorUsb.SendLine("[X-Axis] Homing timeout!");
-            _homingState = HomingState::Failed;
-        }
-        break;
-
-    case HomingState::Complete:
-        if (_motor->StepsComplete()) {
-            ClearCore::ConnectorUsb.SendLine("[X-Axis] Backoff complete, setting zero position");
-            _motor->PositionRefSet(0);
-            _isHomed = true;
-            _homingState = HomingState::Idle;
-            ClearCore::ConnectorUsb.SendLine("[X-Axis] Homing complete!");
-        }
-        break;
-
-    case HomingState::Failed:
-        ClearCore::ConnectorUsb.SendLine("[X-Axis] Homing failed!");
-        _homingState = HomingState::Idle;
-        break;
-
-    default:
-        break;
+    else if (!_isHomed && !_homingHelper->hasFailed() && !_homingHelper->isBusy()) {
+        // Homing completed successfully
+        _isHomed = true;
+        ClearCore::ConnectorUsb.SendLine("[X-Axis] Homing complete!");
     }
 }
 
@@ -210,12 +156,9 @@ bool XAxis::MoveTo(float positionInches, float velocityScale) {
         return false;
     }
 
-    // Allow movement during certain homing states or when not homing
-    if (_homingState != HomingState::Idle &&
-        _homingState != HomingState::Complete &&
-        _homingState != HomingState::Failed) {
-        ClearCore::ConnectorUsb.Send("[X-Axis] MoveTo failed: in homing state ");
-        ClearCore::ConnectorUsb.SendLine(static_cast<int>(_homingState));
+    // Don't allow moves while homing
+    if (_homingHelper->isBusy()) {
+        ClearCore::ConnectorUsb.SendLine("[X-Axis] MoveTo failed: homing in progress");
         return false;
     }
 
@@ -247,9 +190,6 @@ void XAxis::Stop() {
 void XAxis::EmergencyStop() {
     _motor->MoveStopAbrupt();
     _isMoving = false;
-    if (_homingState != HomingState::Idle) {
-        _homingState = HomingState::Idle;
-    }
 }
 
 float XAxis::GetPosition() const {
@@ -269,5 +209,5 @@ bool XAxis::IsHomed() const {
 }
 
 bool XAxis::IsHoming() const {
-    return _homingState != HomingState::Idle;
+    return _homingHelper->isBusy();
 }
