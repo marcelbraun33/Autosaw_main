@@ -78,6 +78,7 @@
 #define LEDDIGITS_INCREMENT                3   // Form1
 #define LEDDIGITS_TOTAL_SLICES             4   // Form1
 #define LEDDIGITS_SLICE_COUNTER            5   // Form1
+#define LED_NEGATIVE_INDICATOR             0   // Form1
 
 #define LEDDIGITS_RPM_DISPLAY              6   // Form2
 #define LEDDIGITS_FEED_OVERRIDE            7   // Form2
