@@ -96,6 +96,7 @@ void JogXScreen::handleEvent(const genieFrame& e) {
         return;
 
     auto& ui = UIInputManager::Instance();
+    auto& mpg = MPGJogManager::Instance();
 
     // Handle button presses based on index
     switch (e.reportObject.index) {
@@ -117,13 +118,13 @@ void JogXScreen::handleEvent(const genieFrame& e) {
 
     case WINBUTTON_ACTIVATE_JOG:
         // Toggle jog mode
-        if (MPGJogManager::Instance().isEnabled()) {
-            MPGJogManager::Instance().setEnabled(false);
+        if (mpg.isEnabled()) {
+            mpg.setEnabled(false);
             showButtonSafe(WINBUTTON_ACTIVATE_JOG, 0);
         }
         else {
-            MPGJogManager::Instance().setEnabled(true);
-            MPGJogManager::Instance().setAxis(AXIS_X);
+            mpg.setEnabled(true);
+            mpg.setAxis(AXIS_X);
             showButtonSafe(WINBUTTON_ACTIVATE_JOG, 1);
         }
         break;
@@ -141,6 +142,14 @@ void JogXScreen::handleEvent(const genieFrame& e) {
             }
         }
         else {
+            // Disable jog if active
+            if (mpg.isEnabled()) {
+                mpg.setEnabled(false);
+                showButtonSafe(WINBUTTON_ACTIVATE_JOG, 0);
+                ClearCore::ConnectorUsb.SendLine("Disabling jog for stock length editing");
+            }
+
+            // Bind to field editor
             ui.bindField(WINBUTTON_SET_STOCK_LENGTH, LEDDIGITS_STOCK_LENGTH,
                 &jogXData.stockLength, 0.0f, 100.0f, 0.125f, 3);
             showButtonSafe(WINBUTTON_SET_STOCK_LENGTH, 1);
@@ -163,6 +172,14 @@ void JogXScreen::handleEvent(const genieFrame& e) {
             }
         }
         else {
+            // Disable jog if active
+            if (mpg.isEnabled()) {
+                mpg.setEnabled(false);
+                showButtonSafe(WINBUTTON_ACTIVATE_JOG, 0);
+                ClearCore::ConnectorUsb.SendLine("Disabling jog for thickness editing");
+            }
+
+            // Bind to field editor
             ui.bindField(WINBUTTON_SET_CUT_THICKNESS, LEDDIGITS_CUT_THICKNESS,
                 &jogXData.thickness, 0.0f, 10.0f, 0.001f, 3);
             showButtonSafe(WINBUTTON_SET_CUT_THICKNESS, 1);
@@ -187,6 +204,14 @@ void JogXScreen::handleEvent(const genieFrame& e) {
             }
         }
         else {
+            // Disable jog if active
+            if (mpg.isEnabled()) {
+                mpg.setEnabled(false);
+                showButtonSafe(WINBUTTON_ACTIVATE_JOG, 0);
+                ClearCore::ConnectorUsb.SendLine("Disabling jog for total slices editing");
+            }
+
+            // Bind to field editor
             ui.bindField(WINBUTTON_SET_TOTAL_SLICES, LEDDIGITS_TOTAL_SLICES,
                 reinterpret_cast<float*>(&jogXData.totalSlices), 1.0f, 1000.0f, 1.0f, 0);
             showButtonSafe(WINBUTTON_SET_TOTAL_SLICES, 1);
