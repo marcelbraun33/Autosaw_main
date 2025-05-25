@@ -101,6 +101,29 @@ void JogXScreen::handleEvent(const genieFrame& e) {
     case WINBUTTON_CAPTURE_INCREMENT:
         captureIncrement();
         break;
+    
+    case WINBUTTON_INC_PLUS: {
+        // jog forward by the current increment
+        float cur = MotionController::Instance().getAxisPosition(AXIS_X);
+        MotionController::Instance().moveTo(AXIS_X, cur + jogXData.increment, 1.0f);
+        // flash button for feedback
+        showButtonSafe(WINBUTTON_INC_PLUS, 1);
+        delay(100);
+        showButtonSafe(WINBUTTON_INC_PLUS, 0);
+        break;
+    }
+
+    case WINBUTTON_INC_MINUS: {
+        // jog backward by the current increment
+        float cur = MotionController::Instance().getAxisPosition(AXIS_X);
+        MotionController::Instance().moveTo(AXIS_X, cur - jogXData.increment, 1.0f);
+        // flash button for feedback
+        showButtonSafe(WINBUTTON_INC_MINUS, 1);
+        delay(100);
+        showButtonSafe(WINBUTTON_INC_MINUS, 0);
+        break;
+    }
+
 
     case WINBUTTON_DIVIDE_SET:
         // quick sanity flashes if invalid

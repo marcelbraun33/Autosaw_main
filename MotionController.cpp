@@ -128,6 +128,24 @@ float MotionController::getTorquePercent(AxisId axis) const {
     return 0.0f;
 }
 
+
+// assume you have members: XAxis xAxis; YAxis yAxis; etc.
+
+bool MotionController::moveTo(AxisId axis, float pos, float scale) {
+    switch (axis) {
+    case AXIS_X: return xAxis.MoveTo(pos, scale);
+    case AXIS_Y: return yAxis.MoveTo(pos, scale);
+    case AXIS_Z: return zAxis.MoveTo(pos, scale);
+        // …other axes…
+    }
+    return false;
+}
+
+bool MotionController::jogBy(AxisId axis, float deltaInches, float scale) {
+    float cur = getAxisPosition(axis);
+    return moveTo(axis, cur + deltaInches, scale);
+}
+
 void MotionController::EmergencyStop() {
     spindle.EmergencyStop();
     xAxis.EmergencyStop();
