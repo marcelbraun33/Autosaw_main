@@ -17,6 +17,9 @@ private:
     void calculateTotalSlices();
     void calculateAndSetIncrement();
 
+    /// Set the global increment, enforce limits, recalc dependents & refresh all displays
+    void setIncrement(float newIncrement);
+
     // Helper methods for updating LED displays
     void updatePositionDisplay();
     void updateStockLengthDisplay();
