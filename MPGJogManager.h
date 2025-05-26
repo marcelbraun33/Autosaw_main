@@ -30,6 +30,10 @@ public:
     /// Enable or disable MPG-jog handling
     void setEnabled(bool en);
     bool isEnabled() const;
+    // Add this to MPGJogManager.h
+    float getAxisIncrement() const;
+
+ 
 
 private:
     MPGJogManager();

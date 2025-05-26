@@ -95,6 +95,16 @@ void MPGJogManager::updateRangeFromInputs() {
        // ClearCore::ConnectorUsb.SendLine(_range);
     }
 }
+float MPGJogManager::getAxisIncrement() const {
+    // Return the current increment based on range
+    switch (_range) {
+    case JOG_MULTIPLIER_X1:   return 0.0003f;
+    case JOG_MULTIPLIER_X10:  return 0.001f;
+    case JOG_MULTIPLIER_X100: return 0.01f;
+    default:                  return 0.0003f;
+    }
+}
+
 
 // MPGJogManager.cpp - update the onEncoderDelta method
 
