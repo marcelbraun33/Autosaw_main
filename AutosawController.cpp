@@ -1,7 +1,7 @@
 #include <ClearCore.h>
 #include <genieArduinoDEV.h>
 #include "Config.h"
-#include "AutoSawController.h"
+#include "AutosawController.h"
 #include "EStopManager.h"
 #include "PendantManager.h"
 #include "UIInputManager.h"

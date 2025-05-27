@@ -1,4 +1,5 @@
-﻿#include <SD.h>
+﻿
+#include <SD.h>
 #include <ClearCore.h>
 #include <genieArduinoDEV.h>
 #include "Config.h"

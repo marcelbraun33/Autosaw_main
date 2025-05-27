@@ -100,6 +100,10 @@
 #define LEDDIGITS_TABLE_POSITION_Y        20   // Form6
 #define LEDDIGITS_CUT_LENGTH_Y            21   // Form6
 #define LEDDIGITS_CUT_STOP_Y              22   // Form6
+// Define LED IDs for indicators
+#ifndef LED_AT_START_POSITION_Y
+#define LED_AT_START_POSITION_Y 1  // LED indicator for table at start position
+#endif
 
 #define LEDDIGITS_MANUAL_RPM              23   // Form7
 #define LEDDIGITS_MANUAL_UNUSED           24   // Form7 (if any)
@@ -157,6 +161,7 @@
 #define WINBUTTON_ACTIVATE_JOG_Y_F6        28
 #define WINBUTTON_SET_WITH_MPG_F6          29
 #define WINBUTTON_CAPTURE_CUT_START_F6     30
+#define WINBUTTON_SET_RETRACT_WITH_MPG_F6  39     // "Set with MPG" for retract distance
 
 // Form7 (Manual Mode)
 #define WINBUTTON_SPINDLE_TOGGLE_F7        31
