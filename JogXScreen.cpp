@@ -55,8 +55,17 @@ void JogXScreen::onShow() {
     MPGJogManager::Instance().setEnabled(true);
     MPGJogManager::Instance().setAxis(AXIS_X);
 
+    // Reset all buttons initially
     for (int i = 0; i <= WINBUTTON_SET_TOTAL_SLICES; ++i) {
         showButtonSafe(i, 0);
+    }
+
+    // Set the capture zero button state based on the current setting
+    if (jogXData.useStockZero) {
+        showButtonSafe(WINBUTTON_CAPTURE_ZERO, 1);
+    }
+    else {
+        showButtonSafe(WINBUTTON_CAPTURE_ZERO, 0);
     }
 
     genie.WriteObject(GENIE_OBJ_LED, LED_NEGATIVE_INDICATOR, 0);
@@ -70,6 +79,7 @@ void JogXScreen::onShow() {
     updateSliceCounterDisplay();
 }
 
+
 void JogXScreen::onHide() {
     MPGJogManager::Instance().setEnabled(false);
     for (int i = 0; i <= WINBUTTON_SET_TOTAL_SLICES; ++i) {
@@ -79,7 +89,7 @@ void JogXScreen::onHide() {
     genie.WriteObject(GENIE_OBJ_USER_LED, LED_NEGATIVE_INDICATOR, 0);
     UIInputManager::Instance().unbindField();
 }
-
+// Update the handleEvent method to include the new button
 void JogXScreen::handleEvent(const genieFrame& e) {
     if (e.reportObject.cmd != GENIE_REPORT_EVENT || e.reportObject.object != GENIE_OBJ_WINBUTTON)
         return;
@@ -101,7 +111,7 @@ void JogXScreen::handleEvent(const genieFrame& e) {
     case WINBUTTON_CAPTURE_INCREMENT:
         captureIncrement();
         break;
-    
+
     case WINBUTTON_INC_PLUS: {
         // jog forward by the current increment
         float cur = MotionController::Instance().getAxisPosition(AXIS_X);
@@ -124,6 +134,9 @@ void JogXScreen::handleEvent(const genieFrame& e) {
         break;
     }
 
+    case WINBUTTON_GO_TO_ZERO:
+        goToZero();
+        break;
 
     case WINBUTTON_DIVIDE_SET:
         // quick sanity flashes if invalid
@@ -142,7 +155,6 @@ void JogXScreen::handleEvent(const genieFrame& e) {
         delay(200);
         showButtonSafe(WINBUTTON_DIVIDE_SET, 0);
         break;
-
     case WINBUTTON_ACTIVATE_JOG:
         if (mpg.isEnabled()) {
             mpg.setEnabled(false);
@@ -241,13 +253,44 @@ void JogXScreen::updatePositionDisplay() {
 }
 
 void JogXScreen::captureZero() {
-    jogXData.positionZero = MotionController::Instance().getAxisPosition(AXIS_X);
-    jogXData.useStockZero = true;
-    ClearCore::ConnectorUsb.Send("Zero position captured: ");
-    ClearCore::ConnectorUsb.SendLine(jogXData.positionZero);
-    showButtonSafe(WINBUTTON_CAPTURE_ZERO, 1);
-    delay(200); showButtonSafe(WINBUTTON_CAPTURE_ZERO, 0);
+    // Toggle the zero capture state
+    jogXData.useStockZero = !jogXData.useStockZero;
+
+    if (jogXData.useStockZero) {
+        // If turning on, capture the current position as zero
+        jogXData.positionZero = MotionController::Instance().getAxisPosition(AXIS_X);
+        ClearCore::ConnectorUsb.Send("Zero position captured: ");
+        ClearCore::ConnectorUsb.SendLine(jogXData.positionZero);
+
+        // Show button as latched/active
+        showButtonSafe(WINBUTTON_CAPTURE_ZERO, 1);
+    }
+    else {
+        // If turning off, revert to absolute coordinates
+        ClearCore::ConnectorUsb.SendLine("Zero offset removed, reverting to machine coordinates");
+
+        // Show button as unlatched/inactive
+        showButtonSafe(WINBUTTON_CAPTURE_ZERO, 0);
+    }
+
+    // Update the position display to reflect the change
     updatePositionDisplay();
+}void JogXScreen::goToZero() {
+    if (jogXData.useStockZero) {
+        // Go to the relative zero position that was captured
+        MotionController::Instance().moveToWithRate(AXIS_X, jogXData.positionZero, 0.5f);
+        ClearCore::ConnectorUsb.SendLine("Moving to captured zero position");
+    }
+    else {
+        // Go to the absolute machine zero when no custom zero is active
+        MotionController::Instance().moveToWithRate(AXIS_X, 0.0f, 0.5f);
+        ClearCore::ConnectorUsb.SendLine("Moving to absolute machine zero");
+    }
+
+    // Visual feedback
+    showButtonSafe(WINBUTTON_GO_TO_ZERO, 1);
+    delay(200);
+    showButtonSafe(WINBUTTON_GO_TO_ZERO, 0);
 }
 
 void JogXScreen::captureStockLength() {

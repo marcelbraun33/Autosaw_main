@@ -1,3 +1,4 @@
+
 #pragma once
 #include "Screen.h"
 #include "Config.h"
@@ -16,6 +17,7 @@ private:
     void captureIncrement();
     void calculateTotalSlices();
     void calculateAndSetIncrement();
+    void goToZero();  // New method for "Go To Zero" button
 
     /// Set the global increment, enforce limits, recalc dependents & refresh all displays
     void setIncrement(float newIncrement);
@@ -28,3 +30,4 @@ private:
     void updateTotalSlicesDisplay();
     void updateSliceCounterDisplay();
 };
+
