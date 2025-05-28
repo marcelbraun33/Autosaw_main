@@ -5,8 +5,8 @@
 #include "MPGJogManager.h"
 
 // Define LED ID for Offset Applied indication
-#ifndef LED_ZERO_OFFSET_Y
-#define LED_ZERO_OFFSET_Y 1  // LED indicator for zero offset applied
+#ifndef LED_AT_START_POSITION_Y
+#define LED_AT_START_POSITION_Y 1  // LED indicator for table at start position
 #endif
 
 extern Genie genie;
@@ -25,12 +25,16 @@ private:
     void captureRetractDistance();  // Changed from captureRetractPosition
 
     // Navigation methods
-    void zeroToStartPosition();
-    void moveToRetractPosition();   // New method to move to retract position
+    void jogToStartPosition();      // Updated name from zeroToStartPosition
+    void jogToEndPosition();        // New method for "Jog To End" button
+    void jogToRetractPosition();    // Updated name from moveToRetractPosition
 
     // MPG editing methods
-    void setLengthWithMPG();       // For cut length editing
-    void setRetractWithMPG();      // New method for retract distance editing 
+    void setLengthWithMPG();        // For cut length editing
+    void setRetractWithMPG();       // For retract distance editing 
+
+    // Jog activation
+    void toggleJogMode();           // For the "Enable Jog" button
 
     // UI update helpers
     void updateCutLengthDisplay();

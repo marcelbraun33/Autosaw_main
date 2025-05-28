@@ -82,36 +82,61 @@
 
 #define LEDDIGITS_RPM_DISPLAY              6   // Form2
 #define LEDDIGITS_FEED_OVERRIDE            7   // Form2
+#define LEDDIGITS_CUT_PRESSURE             27  // Form2 - New from object sheet
+#define LEDDIGITS_THICKNESS_F2             28  // Form2 - New from object sheet
+#define LEDDIGITS_DISTANCE_TO_GO_F2        29  // Form2 - New from object sheet
+#define LEDDIGITS_CUTTING_POSITION_F2      32  // Form2 - New from object sheet
+#define LEDDIGITS_CUTTING_TOTAL_F2         33  // Form2 - New from object sheet
 
 #define LEDDIGITS_DIAMETER_SETTINGS        8   // Form3
 #define LEDDIGITS_THICKNESS_SETTINGS       9   // Form3
 #define LEDDIGITS_RPM_SETTINGS            10   // Form3
 #define LEDDIGITS_FEEDRATE_SETTINGS       11   // Form3
 #define LEDDIGITS_RAPID_SETTINGS          12   // Form3
+#define LEDDIGITS_CUT_PRESSURE_SETTINGS   26   // Form3 - New from object sheet
 
 #define LEDDIGITS_FEED_OVERRIDE_F5        13   // Form5
 #define LEDDIGITS_RPM_F5                  14   // Form5
 #define LEDDIGITS_STOCK_LENGTH_F5         15   // Form5
 #define LEDDIGITS_THICKNESS_F5            16   // Form5
-#define LEDDIGITS_REMAINING_SLICES_F5     17   // Form5
-#define LEDDIGITS_TOTAL_SLICES_F5         18   // Form5
+#define LEDDIGITS_CUTTING_POSITION_F5     17   // Form5 - Updated name to match sheet
+#define LEDDIGITS_DISTANCE_TO_GO_F5       18   // Form5 - Updated name to match sheet
+#define LEDDIGITS_CUT_PRESSURE_F5         30   // Form5 - New from object sheet
+#define LEDDIGITS_TOTAL_SLICES_F5         31   // Form5 - New from object sheet
 
 #define LEDDIGITS_STOCK_END_Y             19   // Form6
 #define LEDDIGITS_TABLE_POSITION_Y        20   // Form6
 #define LEDDIGITS_CUT_LENGTH_Y            21   // Form6
 #define LEDDIGITS_CUT_STOP_Y              22   // Form6
+#define LEDDIGITS_RETRACT_DISTANCE        25   // Form6 - New from object sheet
+
 // Define LED IDs for indicators
 #ifndef LED_AT_START_POSITION_Y
-#define LED_AT_START_POSITION_Y 1  // LED indicator for table at start position
+#define LED_AT_START_POSITION_Y 1  // Form6 - LED indicator for table at start position
+#endif
+
+#ifndef LED_FEED_RATE_OFFSET_F2
+#define LED_FEED_RATE_OFFSET_F2 2  // Form2 - Feed rate offset indicator
+#endif
+
+#ifndef LED_CUT_PRESSURE_OFFSET_F2
+#define LED_CUT_PRESSURE_OFFSET_F2 4  // Form2 - Cut pressure offset indicator
+#endif
+
+#ifndef LED_FEED_RATE_OFFSET_F5
+#define LED_FEED_RATE_OFFSET_F5 3  // Form5 - Feed rate offset indicator
+#endif
+
+#ifndef LED_CUT_PRESSURE_OFFSET_F5
+#define LED_CUT_PRESSURE_OFFSET_F5 5  // Form5 - Cut pressure offset indicator
 #endif
 
 #define LEDDIGITS_MANUAL_RPM              23   // Form7
 #define LEDDIGITS_MANUAL_UNUSED           24   // Form7 (if any)
-#define LEDDIGITS_UNUSED_25               25   // Form7 (if any)
 
 // — Gauges —
 #define IGAUGE_SEMIAUTO_LOAD_METER        0   // Form2
-#define IGAUGE_SEMIAUTO_FEED_PRESSURE     1   // Form2
+#define IGAUGE_SEMIAUTO_CUT_PRESSURE      1   // Form2 - Updated name to match sheet
 #define IGAUGE_AUTOCUT_FEED_PRESSURE      2   // Form5
 #define IGAUGE_AUTOCUT_LOAD_METER         3   // Form5
 #define IGAUGE_MANUAL_LOAD_METER          4   // Form7
@@ -126,6 +151,7 @@
 #define WINBUTTON_ACTIVATE_JOG             2
 #define WINBUTTON_CAPTURE_INCREMENT        3
 #define WINBUTTON_INC_PLUS                 4
+#define WINBUTTON_GO_TO_ZERO              47   // Form1 - New from object sheet
 #define WINBUTTON_INC_MINUS                5
 #define WINBUTTON_DIVIDE_SET               6
 #define WINBUTTON_SET_STOCK_LENGTH         7
@@ -137,9 +163,12 @@
 #define WINBUTTON_FEED_TO_STOP             11
 #define WINBUTTON_FEED_HOLD                12
 #define WINBUTTON_EXIT_FEED_HOLD           13
-#define WINBUTTON_ADVANCE_INCREMENT        14
+#define WINBUTTON_INC_PLUS_F2              14  // Updated based on object sheet
 #define WINBUTTON_ADJUST_FEED              15
 #define WINBUTTON_SETTINGS_SEMI            16
+#define WINBUTTON_ADJUST_CUT_PRESSURE      41  // Form2 - New from object sheet
+#define WINBUTTON_TABLE_TO_POSITION        42  // Form2 - New from object sheet
+#define WINBUTTON_INC_MINUS_F2             50  // Form2 - New from object sheet
 
 // Form3 (Settings)
 #define WINBUTTON_SET_RPM_SETTINGS         17
@@ -147,7 +176,10 @@
 #define WINBUTTON_SET_RAPID_SETTINGS       19
 #define WINBUTTON_SET_DIAMETER_SETTINGS    20
 #define WINBUTTON_SET_THICKNESS_SETTINGS   21
-#define WINBUTTON_BACK                      38
+#define WINBUTTON_BACK                     38
+#define WINBUTTON_SET_CUT_PRESSURE_F3      40  // Form3 - New from object sheet
+#define WINBUTTON_APPLY_OFFSET_PRESSURE    45  // Form3 - New from object sheet
+#define WINBUTTON_APPLY_OFFSET_FEEDRATE    46  // Form3 - New from object sheet
 
 // Form5 (Autocut Active)
 #define WINBUTTON_END_CYCLE_F5             22
@@ -155,13 +187,18 @@
 #define WINBUTTON_ADJUST_FEEDRATE_F5       24
 #define WINBUTTON_START_AUTOFEED_F5        25
 #define WINBUTTON_SETTINGS_F5              26
+#define WINBUTTON_ADJUST_CUT_PRESSURE_F5   43  // Form5 - New from object sheet
+#define WINBUTTON_MOVE_TO_START_POSITION   44  // Form5 - New from object sheet
 
 // Form6 (Jog Table)
 #define WINBUTTON_CAPTURE_CUT_END_F6       27
 #define WINBUTTON_ACTIVATE_JOG_Y_F6        28
 #define WINBUTTON_SET_WITH_MPG_F6          29
 #define WINBUTTON_CAPTURE_CUT_START_F6     30
-#define WINBUTTON_SET_RETRACT_WITH_MPG_F6  39     // "Set with MPG" for retract distance
+#define WINBUTTON_JOG_TO_START             34  // Form6 - Updated based on object sheet
+#define WINBUTTON_SET_RETRACT_WITH_MPG_F6  39
+#define WINBUTTON_JOG_TO_END               48  // Form6 - New from object sheet
+#define WINBUTTON_JOG_TO_RETRACT           49  // Form6 - New from object sheet
 
 // Form7 (Manual Mode)
 #define WINBUTTON_SPINDLE_TOGGLE_F7        31
