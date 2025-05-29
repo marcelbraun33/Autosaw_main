@@ -10,16 +10,30 @@ extern Genie genie;  // reference to global UI instance
 
 ScreenManager& ScreenManager::Instance() {
     static ScreenManager inst;
+
     return inst;
 }
 
-ScreenManager::ScreenManager() = default;
+
+ScreenManager::ScreenManager()
+    : _manualScreen(*this),
+    _settingsScreen(*this),
+    _homingScreen(),
+    _jogXScreen(*this),
+    _jogYScreen(*this),
+    _jogZScreen(*this),
+    _semiAutoScreen(*this),
+    _autoCutScreen(*this)
+{
+    // Any other initialization here
+}
 
 void ScreenManager::Init() {
     // Show splash briefly then manual mode
     writeForm(FORM_SPLASH);
     Delay_ms(500);
     ShowManualMode();
+
 }
 
 void ScreenManager::writeForm(uint8_t formId) {

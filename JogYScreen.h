@@ -3,6 +3,8 @@
 #include "Config.h"
 #include "MotionController.h"
 #include "MPGJogManager.h"
+#include "CutData.h"
+class ScreenManager;
 
 // Define LED ID for Offset Applied indication
 #ifndef LED_AT_START_POSITION_Y
@@ -17,42 +19,35 @@ public:
     void onHide() override;
     void handleEvent(const genieFrame& e) override;
     void update() override;
-
+    JogYScreen(ScreenManager& mgr);
 private:
     // Input capture methods
     void captureCutStart();
     void captureCutEnd();
-    void captureRetractDistance();  // Changed from captureRetractPosition
+    void captureRetractDistance();
 
     // Navigation methods
-    void jogToStartPosition();      // Updated name from zeroToStartPosition
-    void jogToEndPosition();        // New method for "Jog To End" button
-    void jogToRetractPosition();    // Updated name from moveToRetractPosition
+    void jogToStartPosition();
+    void jogToEndPosition();
+    void jogToRetractPosition();
 
     // MPG editing methods
-    void setLengthWithMPG();        // For cut length editing
-    void setRetractWithMPG();       // For retract distance editing 
+    void setLengthWithMPG();
+    void setRetractWithMPG();
 
     // Jog activation
-    void toggleJogMode();           // For the "Enable Jog" button
+    void toggleJogMode();
 
     // UI update helpers
     void updateCutLengthDisplay();
     void updateAllDisplays();
 
-    // Motion coordinate values (absolute machine coordinates)
-    float _cutStartPoint = 0.0f;   // Absolute machine Y coordinate for start
-    float _cutEndPoint = 0.0f;     // Absolute machine Y coordinate for end
-
-    // UI-facing values (always positive)
-    float _retractDistance = 0.5f; // Distance to retract, always positive
-    float _cutLength = 0.0f;       // Cut length display value, always positive
-
     // MPG editing state
-    bool _mpgSetLengthMode = false;  // True when editing cut length with MPG
-    bool _mpgSetRetractMode = false; // True when editing retract with MPG
+    bool _mpgSetLengthMode = false;
+    bool _mpgSetRetractMode = false;
 
     // Temporary values during editing
-    static float _tempLength;       // For editing cut length with MPG
-    static float _tempRetract;      // For editing retract distance with MPG
+    static float _tempLength;
+    static float _tempRetract;
+    ScreenManager& _mgr;
 };

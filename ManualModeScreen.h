@@ -3,6 +3,7 @@
 
 #include "Screen.h"
 #include <genieArduinoDEV.h>
+class ScreenManager;
 
 class ManualModeScreen : public Screen {
 public:
@@ -10,5 +11,9 @@ public:
     void onHide() override;
     void handleEvent(const genieFrame& e) override;
     void update() override;
+	ManualModeScreen(ScreenManager& mgr);  
+private:
+    ScreenManager& _mgr;
 };
+
 

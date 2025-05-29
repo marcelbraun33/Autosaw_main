@@ -2,16 +2,19 @@
 // === ScreenManager.h ===
 #pragma once
 #include <genieArduinoDEV.h>
+#include "HomingScreen.h"
 #include "Screen.h"
 #include "ManualModeScreen.h"
 #include "SettingsScreen.h"
-#include "HomingScreen.h"
 #include "JogXScreen.h"
 #include "JogYScreen.h"
 #include "JogZScreen.h"
 #include "SemiAutoScreen.h"
 #include "AutoCutScreen.h"
+#include "CutData.h"
 
+
+class HomingScreen;
 class ScreenManager {
 public:
     static ScreenManager& Instance();
@@ -33,6 +36,7 @@ public:
 
     uint8_t currentForm() const { return _currentForm; }
     Screen* currentScreen();
+    CutData& GetCutData() { return _cutData; }
 
 private:
     ScreenManager();
@@ -50,4 +54,5 @@ private:
     SemiAutoScreen   _semiAutoScreen;
     AutoCutScreen    _autoCutScreen;
     Screen* _currentScreen = nullptr;
+    CutData _cutData;
 };

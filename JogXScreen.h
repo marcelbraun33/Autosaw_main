@@ -1,8 +1,8 @@
-
 #pragma once
 #include "Screen.h"
 #include "Config.h"
-
+#include "CutData.h"
+class ScreenManager;
 
 class JogXScreen : public Screen {
 public:
@@ -10,14 +10,16 @@ public:
     void onHide() override;
     void handleEvent(const genieFrame& e) override;
     void update() override;
+    JogXScreen(ScreenManager& mgr);
 
 private:
+    // UI and logic helpers
     void captureZero();
     void captureStockLength();
     void captureIncrement();
     void calculateTotalSlices();
     void calculateAndSetIncrement();
-    void goToZero();  // New method for "Go To Zero" button
+    void goToZero();  // "Go To Zero" button
 
     /// Set the global increment, enforce limits, recalc dependents & refresh all displays
     void setIncrement(float newIncrement);
@@ -29,5 +31,6 @@ private:
     void updateThicknessDisplay();
     void updateTotalSlicesDisplay();
     void updateSliceCounterDisplay();
-};
 
+    ScreenManager& _mgr;
+};

@@ -1,11 +1,25 @@
 #include "JogZScreen.h"
+#include "screenmanager.h" // Required for _mgr.GetCutData()
 
-void JogZScreen::onShow() {}
+JogZScreen::JogZScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
-void JogZScreen::onHide() {}
+void JogZScreen::onShow() {
+    // Example: auto& cutData = _mgr.GetCutData();
+    // Initialize Z screen state here
+}
 
-void JogZScreen::handleEvent(const genieFrame& e) {}
+void JogZScreen::onHide() {
+    // Cleanup or disable Z screen state here
+}
 
-void JogZScreen::setRPM(float value) {}
+void JogZScreen::handleEvent(const genieFrame& e) {
+    // Handle Z axis events here
+}
 
-void JogZScreen::toggleEnable() {}
+void JogZScreen::setRPM(float value) {
+    // Set spindle or tool RPM, using cutData if needed
+}
+
+void JogZScreen::toggleEnable() {
+    // Enable/disable Z axis or spindle, using cutData if needed
+}

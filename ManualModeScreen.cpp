@@ -6,6 +6,8 @@
 #include <ClearCore.h>
 #include "Config.h"
 
+ManualModeScreen::ManualModeScreen(ScreenManager& mgr) : _mgr(mgr) {}
+
 extern Genie genie;
 
 void ManualModeScreen::onShow() {

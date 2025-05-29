@@ -7,66 +7,25 @@
 #include <cmath>
 #include "Config.h"
 
-// Define LED indicator constants if not already defined in Config.h
 #ifndef LED_NEGATIVE_INDICATOR
-#define LED_NEGATIVE_INDICATOR 0   // Form1: LED indicator for negative value
+#define LED_NEGATIVE_INDICATOR 0
 #endif
-
-// GenieArduino standard object types
-#define GENIE_OBJ_DIPSW        0
-#define GENIE_OBJ_KNOB         1
-#define GENIE_OBJ_ROCKERSW     2
-#define GENIE_OBJ_ROTARYSW     3
-#define GENIE_OBJ_SLIDER       4
-#define GENIE_OBJ_TRACKBAR     5
-#define GENIE_OBJ_WINBUTTON    6
-#define GENIE_OBJ_ANGULAR_METER 7
-#define GENIE_OBJ_COOL_GAUGE   8
-#define GENIE_OBJ_CUSTOM_DIGITS 9
-#define GENIE_OBJ_FORM         10
-#define GENIE_OBJ_GAUGE        11
-#define GENIE_OBJ_IMAGE        12
-#define GENIE_OBJ_KEYBOARD     13
-#define GENIE_OBJ_LED          14
-#define GENIE_OBJ_LED_DIGITS   15
-#define GENIE_OBJ_METER        16
-#define GENIE_OBJ_STRINGS      17
-#define GENIE_OBJ_THERMOMETER  18
-#define GENIE_OBJ_USER_LED     19
-#define GENIE_OBJ_VIDEO        20
-#define GENIE_OBJ_STATIC_TEXT  21
-#define GENIE_OBJ_SOUND        22
-#define GENIE_OBJ_TIMER        23
 
 extern Genie genie;
 
-// Storage for position values
-static struct {
-    float positionZero = 0.0f;
-    float stockLength = 0.0f;
-    float increment = 0.0f;
-    float thickness = 0.0f;
-    int totalSlices = 0;
-    int currentSlice = 0;
-    bool useStockZero = false;
-} jogXData;
+JogXScreen::JogXScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
 void JogXScreen::onShow() {
     MPGJogManager::Instance().setEnabled(true);
     MPGJogManager::Instance().setAxis(AXIS_X);
 
-    // Reset all buttons initially
+    auto& cutData = _mgr.GetCutData();
+
     for (int i = 0; i <= WINBUTTON_SET_TOTAL_SLICES; ++i) {
         showButtonSafe(i, 0);
     }
 
-    // Set the capture zero button state based on the current setting
-    if (jogXData.useStockZero) {
-        showButtonSafe(WINBUTTON_CAPTURE_ZERO, 1);
-    }
-    else {
-        showButtonSafe(WINBUTTON_CAPTURE_ZERO, 0);
-    }
+    showButtonSafe(WINBUTTON_CAPTURE_ZERO, cutData.useStockZero ? 1 : 0);
 
     genie.WriteObject(GENIE_OBJ_LED, LED_NEGATIVE_INDICATOR, 0);
     genie.WriteObject(GENIE_OBJ_USER_LED, LED_NEGATIVE_INDICATOR, 0);
@@ -79,7 +38,6 @@ void JogXScreen::onShow() {
     updateSliceCounterDisplay();
 }
 
-
 void JogXScreen::onHide() {
     MPGJogManager::Instance().setEnabled(false);
     for (int i = 0; i <= WINBUTTON_SET_TOTAL_SLICES; ++i) {
@@ -89,14 +47,15 @@ void JogXScreen::onHide() {
     genie.WriteObject(GENIE_OBJ_USER_LED, LED_NEGATIVE_INDICATOR, 0);
     UIInputManager::Instance().unbindField();
 }
-// Update the handleEvent method to include the new button
+
 void JogXScreen::handleEvent(const genieFrame& e) {
     if (e.reportObject.cmd != GENIE_REPORT_EVENT || e.reportObject.object != GENIE_OBJ_WINBUTTON)
         return;
 
+    auto& cutData = _mgr.GetCutData();
     auto& ui = UIInputManager::Instance();
     auto& mpg = MPGJogManager::Instance();
-    static float tempSlices = 10.0f;    // unified edit buffer for totalSlices
+    static float tempSlices = 10.0f;
     float newIncrement;
 
     switch (e.reportObject.index) {
@@ -113,10 +72,8 @@ void JogXScreen::handleEvent(const genieFrame& e) {
         break;
 
     case WINBUTTON_INC_PLUS: {
-        // jog forward by the current increment
         float cur = MotionController::Instance().getAxisPosition(AXIS_X);
-        MotionController::Instance().moveTo(AXIS_X, cur + jogXData.increment, 1.0f);
-        // flash button for feedback
+        MotionController::Instance().moveTo(AXIS_X, cur + cutData.increment, 1.0f);
         showButtonSafe(WINBUTTON_INC_PLUS, 1);
         delay(100);
         showButtonSafe(WINBUTTON_INC_PLUS, 0);
@@ -124,10 +81,8 @@ void JogXScreen::handleEvent(const genieFrame& e) {
     }
 
     case WINBUTTON_INC_MINUS: {
-        // jog backward by the current increment
         float cur = MotionController::Instance().getAxisPosition(AXIS_X);
-        MotionController::Instance().moveTo(AXIS_X, cur - jogXData.increment, 1.0f);
-        // flash button for feedback
+        MotionController::Instance().moveTo(AXIS_X, cur - cutData.increment, 1.0f);
         showButtonSafe(WINBUTTON_INC_MINUS, 1);
         delay(100);
         showButtonSafe(WINBUTTON_INC_MINUS, 0);
@@ -139,8 +94,7 @@ void JogXScreen::handleEvent(const genieFrame& e) {
         break;
 
     case WINBUTTON_DIVIDE_SET:
-        // quick sanity flashes if invalid
-        if (jogXData.totalSlices <= 0 || jogXData.stockLength <= 0.0f) {
+        if (cutData.totalSlices <= 0 || cutData.stockLength <= 0.0f) {
             for (int i = 0; i < 2; ++i) {
                 showButtonSafe(WINBUTTON_DIVIDE_SET, 1);
                 delay(50);
@@ -149,12 +103,13 @@ void JogXScreen::handleEvent(const genieFrame& e) {
             }
             break;
         }
-        newIncrement = jogXData.stockLength / jogXData.totalSlices;
+        newIncrement = cutData.stockLength / cutData.totalSlices;
         setIncrement(newIncrement);
         showButtonSafe(WINBUTTON_DIVIDE_SET, 1);
         delay(200);
         showButtonSafe(WINBUTTON_DIVIDE_SET, 0);
         break;
+
     case WINBUTTON_ACTIVATE_JOG:
         if (mpg.isEnabled()) {
             mpg.setEnabled(false);
@@ -181,7 +136,7 @@ void JogXScreen::handleEvent(const genieFrame& e) {
                 showButtonSafe(WINBUTTON_ACTIVATE_JOG, 0);
             }
             ui.bindField(WINBUTTON_SET_STOCK_LENGTH, LEDDIGITS_STOCK_LENGTH,
-                &jogXData.stockLength, 0.0f, 100.0f, 0.001f, 3);
+                &cutData.stockLength, 0.0f, 100.0f, 0.001f, 3);
             showButtonSafe(WINBUTTON_SET_STOCK_LENGTH, 1);
         }
         break;
@@ -190,9 +145,9 @@ void JogXScreen::handleEvent(const genieFrame& e) {
         if (ui.isEditing() && ui.isFieldActive(WINBUTTON_SET_CUT_THICKNESS)) {
             ui.unbindField();
             showButtonSafe(WINBUTTON_SET_CUT_THICKNESS, 0);
-            if (jogXData.thickness < 0.0f) jogXData.thickness = 0.0f;
+            if (cutData.thickness < 0.0f) cutData.thickness = 0.0f;
             float blade = SettingsManager::Instance().settings().bladeThickness;
-            newIncrement = jogXData.thickness + blade;
+            newIncrement = cutData.thickness + blade;
             setIncrement(newIncrement);
         }
         else if (!ui.isEditing()) {
@@ -200,19 +155,18 @@ void JogXScreen::handleEvent(const genieFrame& e) {
                 mpg.setEnabled(false);
                 showButtonSafe(WINBUTTON_ACTIVATE_JOG, 0);
             }
-            if (jogXData.thickness < 0.0f) jogXData.thickness = 0.0f;
-            int32_t scaled = static_cast<int32_t>(round(jogXData.thickness * 1000.0f));
+            if (cutData.thickness < 0.0f) cutData.thickness = 0.0f;
+            int32_t scaled = static_cast<int32_t>(round(cutData.thickness * 1000.0f));
             genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_THICKNESS, static_cast<uint16_t>(scaled));
             ui.bindField(WINBUTTON_SET_CUT_THICKNESS, LEDDIGITS_CUT_THICKNESS,
-                &jogXData.thickness, 0.0f, 10.0f, 0.001f, 3);
+                &cutData.thickness, 0.0f, 10.0f, 0.001f, 3);
             showButtonSafe(WINBUTTON_SET_CUT_THICKNESS, 1);
         }
         break;
 
     case WINBUTTON_SET_TOTAL_SLICES:
         if (ui.isEditing() && ui.isFieldActive(WINBUTTON_SET_TOTAL_SLICES)) {
-            // commit user’s value
-            jogXData.totalSlices = static_cast<int>(roundf(tempSlices));
+            cutData.totalSlices = static_cast<int>(roundf(tempSlices));
             ui.unbindField();
             showButtonSafe(WINBUTTON_SET_TOTAL_SLICES, 0);
         }
@@ -221,8 +175,7 @@ void JogXScreen::handleEvent(const genieFrame& e) {
                 mpg.setEnabled(false);
                 showButtonSafe(WINBUTTON_ACTIVATE_JOG, 0);
             }
-            // seed buffer & display
-            tempSlices = (jogXData.totalSlices > 0 ? jogXData.totalSlices : 10);
+            tempSlices = (cutData.totalSlices > 0 ? cutData.totalSlices : 10);
             genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_TOTAL_SLICES,
                 static_cast<uint16_t>(tempSlices));
             ui.bindField(WINBUTTON_SET_TOTAL_SLICES, LEDDIGITS_TOTAL_SLICES,
@@ -234,8 +187,9 @@ void JogXScreen::handleEvent(const genieFrame& e) {
 }
 
 void JogXScreen::updatePositionDisplay() {
+    auto& cutData = _mgr.GetCutData();
     float current = MotionController::Instance().getAxisPosition(AXIS_X);
-    float display = jogXData.useStockZero ? (current - jogXData.positionZero) : current;
+    float display = cutData.useStockZero ? (current - cutData.positionZero) : current;
     bool negative = (display < 0.0f);
     static bool lastNeg = false;
     genie.WriteObject(GENIE_OBJ_LED, LED_NEGATIVE_INDICATOR, negative ? 1 : 0);
@@ -253,49 +207,41 @@ void JogXScreen::updatePositionDisplay() {
 }
 
 void JogXScreen::captureZero() {
-    // Toggle the zero capture state
-    jogXData.useStockZero = !jogXData.useStockZero;
+    auto& cutData = _mgr.GetCutData();
+    cutData.useStockZero = !cutData.useStockZero;
 
-    if (jogXData.useStockZero) {
-        // If turning on, capture the current position as zero
-        jogXData.positionZero = MotionController::Instance().getAxisPosition(AXIS_X);
+    if (cutData.useStockZero) {
+        cutData.positionZero = MotionController::Instance().getAxisPosition(AXIS_X);
         ClearCore::ConnectorUsb.Send("Zero position captured: ");
-        ClearCore::ConnectorUsb.SendLine(jogXData.positionZero);
-
-        // Show button as latched/active
+        ClearCore::ConnectorUsb.SendLine(cutData.positionZero);
         showButtonSafe(WINBUTTON_CAPTURE_ZERO, 1);
     }
     else {
-        // If turning off, revert to absolute coordinates
         ClearCore::ConnectorUsb.SendLine("Zero offset removed, reverting to machine coordinates");
-
-        // Show button as unlatched/inactive
         showButtonSafe(WINBUTTON_CAPTURE_ZERO, 0);
     }
-
-    // Update the position display to reflect the change
     updatePositionDisplay();
-}void JogXScreen::goToZero() {
-    if (jogXData.useStockZero) {
-        // Go to the relative zero position that was captured
-        MotionController::Instance().moveToWithRate(AXIS_X, jogXData.positionZero, 0.5f);
+}
+
+void JogXScreen::goToZero() {
+    auto& cutData = _mgr.GetCutData();
+    if (cutData.useStockZero) {
+        MotionController::Instance().moveToWithRate(AXIS_X, cutData.positionZero, 0.5f);
         ClearCore::ConnectorUsb.SendLine("Moving to captured zero position");
     }
     else {
-        // Go to the absolute machine zero when no custom zero is active
         MotionController::Instance().moveToWithRate(AXIS_X, 0.0f, 0.5f);
         ClearCore::ConnectorUsb.SendLine("Moving to absolute machine zero");
     }
-
-    // Visual feedback
     showButtonSafe(WINBUTTON_GO_TO_ZERO, 1);
     delay(200);
     showButtonSafe(WINBUTTON_GO_TO_ZERO, 0);
 }
 
 void JogXScreen::captureStockLength() {
+    auto& cutData = _mgr.GetCutData();
     float current = MotionController::Instance().getAxisPosition(AXIS_X);
-    float display = jogXData.useStockZero ? (current - jogXData.positionZero) : current;
+    float display = cutData.useStockZero ? (current - cutData.positionZero) : current;
     if (display < 0.0f) {
         ClearCore::ConnectorUsb.SendLine("Error: Cannot capture stock length when negative");
         showButtonSafe(WINBUTTON_CAPTURE_STOCK_LENGTH, 1);
@@ -304,7 +250,7 @@ void JogXScreen::captureStockLength() {
         delay(50); showButtonSafe(WINBUTTON_CAPTURE_STOCK_LENGTH, 0);
         return;
     }
-    jogXData.stockLength = display;
+    cutData.stockLength = display;
     showButtonSafe(WINBUTTON_CAPTURE_STOCK_LENGTH, 1);
     delay(200); showButtonSafe(WINBUTTON_CAPTURE_STOCK_LENGTH, 0);
     updateStockLengthDisplay();
@@ -314,8 +260,9 @@ void JogXScreen::captureStockLength() {
 }
 
 void JogXScreen::captureIncrement() {
+    auto& cutData = _mgr.GetCutData();
     float current = MotionController::Instance().getAxisPosition(AXIS_X);
-    float display = jogXData.useStockZero ? (current - jogXData.positionZero) : current;
+    float display = cutData.useStockZero ? (current - cutData.positionZero) : current;
     if (display < 0.0f) {
         ClearCore::ConnectorUsb.SendLine("Error: Cannot capture increment when negative");
         showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 1);
@@ -330,16 +277,18 @@ void JogXScreen::captureIncrement() {
 }
 
 void JogXScreen::calculateTotalSlices() {
-    if (jogXData.increment > 0.0f)
-        jogXData.totalSlices = static_cast<int>(floorf(jogXData.stockLength / jogXData.increment));
+    auto& cutData = _mgr.GetCutData();
+    if (cutData.increment > 0.0f)
+        cutData.totalSlices = static_cast<int>(floorf(cutData.stockLength / cutData.increment));
     else
-        jogXData.totalSlices = 0;
+        cutData.totalSlices = 0;
 }
 
 void JogXScreen::setIncrement(float newIncrement) {
+    auto& cutData = _mgr.GetCutData();
     ClearCore::ConnectorUsb.SendLine("--------- SET INCREMENT ---------");
     ClearCore::ConnectorUsb.Send("Previous increment: ");
-    ClearCore::ConnectorUsb.SendLine(jogXData.increment);
+    ClearCore::ConnectorUsb.SendLine(cutData.increment);
     ClearCore::ConnectorUsb.Send("New increment (raw): ");
     ClearCore::ConnectorUsb.SendLine(newIncrement);
 
@@ -348,19 +297,19 @@ void JogXScreen::setIncrement(float newIncrement) {
         ClearCore::ConnectorUsb.SendLine("WARNING: Minimum increment enforced");
     }
 
-    jogXData.increment = newIncrement;
+    cutData.increment = newIncrement;
     float bladeThickness = SettingsManager::Instance().settings().bladeThickness;
-    jogXData.thickness = jogXData.increment - bladeThickness;
-    if (jogXData.thickness < 0.0f) {
-        jogXData.thickness = 0.0f;
+    cutData.thickness = cutData.increment - bladeThickness;
+    if (cutData.thickness < 0.0f) {
+        cutData.thickness = 0.0f;
         ClearCore::ConnectorUsb.SendLine("WARNING: Cut thickness negative, set to 0");
     }
     ClearCore::ConnectorUsb.Send("Calculated thickness: ");
-    ClearCore::ConnectorUsb.SendLine(jogXData.thickness);
+    ClearCore::ConnectorUsb.SendLine(cutData.thickness);
 
     calculateTotalSlices();
     ClearCore::ConnectorUsb.Send("Calculated total slices: ");
-    ClearCore::ConnectorUsb.SendLine(jogXData.totalSlices);
+    ClearCore::ConnectorUsb.SendLine(cutData.totalSlices);
 
     updateIncrementDisplay();
     updateThicknessDisplay();
@@ -371,33 +320,38 @@ void JogXScreen::setIncrement(float newIncrement) {
 }
 
 void JogXScreen::updateStockLengthDisplay() {
-    int32_t scaled = static_cast<int32_t>(round(jogXData.stockLength * 1000.0f));
+    auto& cutData = _mgr.GetCutData();
+    int32_t scaled = static_cast<int32_t>(round(cutData.stockLength * 1000.0f));
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_STOCK_LENGTH, static_cast<uint16_t>(scaled));
 }
 
 void JogXScreen::updateIncrementDisplay() {
-    if (jogXData.increment < 0.001f) jogXData.increment = 0.001f;
-    int32_t scaled = static_cast<int32_t>(round(jogXData.increment * 1000.0f));
+    auto& cutData = _mgr.GetCutData();
+    if (cutData.increment < 0.001f) cutData.increment = 0.001f;
+    int32_t scaled = static_cast<int32_t>(round(cutData.increment * 1000.0f));
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_INCREMENT, static_cast<uint16_t>(scaled));
 }
 
 void JogXScreen::updateThicknessDisplay() {
-    if (jogXData.thickness < 0.0f) jogXData.thickness = 0.0f;
-    else if (jogXData.thickness > 10.0f) jogXData.thickness = 10.0f;
+    auto& cutData = _mgr.GetCutData();
+    if (cutData.thickness < 0.0f) cutData.thickness = 0.0f;
+    else if (cutData.thickness > 10.0f) cutData.thickness = 10.0f;
     ClearCore::ConnectorUsb.Send("Updating thickness display to: ");
-    ClearCore::ConnectorUsb.SendLine(jogXData.thickness);
-    int32_t scaled = static_cast<int32_t>(round(jogXData.thickness * 1000.0f));
+    ClearCore::ConnectorUsb.SendLine(cutData.thickness);
+    int32_t scaled = static_cast<int32_t>(round(cutData.thickness * 1000.0f));
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_THICKNESS, static_cast<uint16_t>(scaled));
 }
 
 void JogXScreen::updateTotalSlicesDisplay() {
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_TOTAL_SLICES, static_cast<uint16_t>(jogXData.totalSlices));
+    auto& cutData = _mgr.GetCutData();
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_TOTAL_SLICES, static_cast<uint16_t>(cutData.totalSlices));
 }
 
 void JogXScreen::updateSliceCounterDisplay() {
+    auto& cutData = _mgr.GetCutData();
     int available = 0;
-    if (jogXData.increment > 0.0f)
-        available = static_cast<int>(floorf(jogXData.stockLength / jogXData.increment));
+    if (cutData.increment > 0.0f)
+        available = static_cast<int>(floorf(cutData.stockLength / cutData.increment));
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SLICE_COUNTER, static_cast<uint16_t>(available));
 }
 
@@ -407,12 +361,13 @@ void JogXScreen::update() {
     uint32_t now = ClearCore::TimingMgr.Milliseconds();
     if (now - last > 500) {
         last = now;
+        auto& cutData = _mgr.GetCutData();
         auto& ui = UIInputManager::Instance();
         if (!ui.isEditing()) {
             float bladeThickness = SettingsManager::Instance().settings().bladeThickness;
-            float newTh = jogXData.increment - bladeThickness;
-            if (fabs(newTh - jogXData.thickness) > 0.0001f) {
-                jogXData.thickness = newTh < 0.0f ? 0.0f : newTh;
+            float newTh = cutData.increment - bladeThickness;
+            if (fabs(newTh - cutData.thickness) > 0.0001f) {
+                cutData.thickness = newTh < 0.0f ? 0.0f : newTh;
                 updateThicknessDisplay();
             }
             updateSliceCounterDisplay();

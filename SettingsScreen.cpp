@@ -1,12 +1,13 @@
-﻿// SettingsScreen.cpp
-#include "SettingsScreen.h"
+﻿#include "SettingsScreen.h"
 #include "ScreenManager.h"
 #include "SettingsManager.h"
 #include "UIInputManager.h"
-#include <cmath>
 #include "PendantManager.h"
+#include <cmath>
 
 extern Genie genie;
+
+SettingsScreen::SettingsScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
 void SettingsScreen::onShow() {
     genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_BACK, 0);
@@ -25,16 +26,12 @@ void SettingsScreen::onShow() {
 }
 
 void SettingsScreen::handleEvent(const genieFrame& e) {
-   // Serial.print("SettingsScreen::handleEvent - object: ");
-   // Serial.print(e.reportObject.object);
-   // Serial.print(", index: ");
-   // Serial.println(e.reportObject.index);
-
     if (e.reportObject.cmd != GENIE_REPORT_EVENT || e.reportObject.object != GENIE_OBJ_WINBUTTON)
         return;
 
     auto& ui = UIInputManager::Instance();
     auto& settings = SettingsManager::Instance().settings();
+    // If you ever need job/cut data, use: auto& cutData = _mgr.GetCutData();
 
     switch (e.reportObject.index) {
     case WINBUTTON_SET_DIAMETER_SETTINGS:
@@ -127,7 +124,6 @@ void SettingsScreen::handleEvent(const genieFrame& e) {
         }
         break;
 
-
     case WINBUTTON_BACK:
         Serial.println("SettingsScreen: BACK pressed");
         ui.unbindField();
@@ -140,8 +136,8 @@ void SettingsScreen::handleEvent(const genieFrame& e) {
 
         switch (selector) {
         case 0x01:
-         
-
+            // Reserved for future use
+            break;
         case 0x02: ScreenManager::Instance().ShowJogY(); break;
         case 0x04: ScreenManager::Instance().ShowJogZ(); break;
         case 0x08: ScreenManager::Instance().ShowSemiAuto(); break;
