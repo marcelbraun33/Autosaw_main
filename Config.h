@@ -72,6 +72,7 @@ constexpr float MAX_ACCELERATION_Z = 100000.0f;  // steps/s^2
 
 
 
+
 // === Jog Encoder Scaling ===
 #define ENCODER_COUNTS_PER_CLICK  4
 #define JOG_MULTIPLIER_X1         1

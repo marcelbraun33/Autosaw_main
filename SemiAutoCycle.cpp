@@ -55,8 +55,39 @@ void SemiAutoCycle::cancel() {
 }
 
 void SemiAutoCycle::update() {
+    // Check for alerts on Y axis
+    static uint32_t lastAlertCheck = 0;
+    uint32_t now = ClearCore::TimingMgr.Milliseconds();
+
+    if (_yAxis && (now - lastAlertCheck > 500)) { // Check every 500ms
+        lastAlertCheck = now;
+
+        if (_yAxis->HasAlerts()) {
+            ClearCore::ConnectorUsb.SendLine("[SemiAutoCycle] Y axis has alerts, clearing");
+            _yAxis->ClearAlerts();
+
+            // If in Error state for a while, try auto-recovery
+            static uint32_t errorStartTime = 0;
+            if (_state == Error) {
+                if (errorStartTime == 0) {
+                    errorStartTime = now;
+                }
+                else if (now - errorStartTime > 5000) { // 5 seconds in error state
+                    ClearCore::ConnectorUsb.SendLine("[SemiAutoCycle] Auto-recovery attempt");
+                    attemptRecovery();
+                    errorStartTime = 0;
+                }
+            }
+            else {
+                errorStartTime = 0;
+            }
+        }
+    }
+
     updateStateMachine();
 }
+
+
 
 bool SemiAutoCycle::isActive() const {
     return _state != Idle && _state != Complete && _state != Canceled && _state != Error;
@@ -99,13 +130,101 @@ void SemiAutoCycle::incrementCutIndex(int delta) {
 }
 void SemiAutoCycle::feedToStop() {
     if (_state == Ready) {
-        if (_yAxis) _feedStartPos = _yAxis->GetPosition();
-        transitionTo(FeedingToStop);
-        _spindleOn = true;
+        if (_yAxis) {
+            // Make sure the axis has no alerts before starting a move
+            _yAxis->ClearAlerts();
+
+            // Capture the starting position
+            _feedStartPos = _yAxis->GetPosition();
+
+            ClearCore::ConnectorUsb.Send("[SemiAutoCycle] Starting feed from position: ");
+            ClearCore::ConnectorUsb.SendLine(_feedStartPos);
+            ClearCore::ConnectorUsb.Send("[SemiAutoCycle] Target end position: ");
+            ClearCore::ConnectorUsb.SendLine(_cutData.cutEndPoint);
+
+            transitionTo(FeedingToStop);
+            _spindleOn = true;
+        }
+        else {
+            ClearCore::ConnectorUsb.SendLine("[SemiAutoCycle] Cannot feed: Y axis not available");
+            transitionTo(Error);
+            snprintf(_errorMsg, sizeof(_errorMsg), "Y axis not available");
+        }
     }
+    else {
+        ClearCore::ConnectorUsb.Send("[SemiAutoCycle] Cannot start feed in state: ");
+        ClearCore::ConnectorUsb.SendLine(stateToString(_state));
+    }
+}
+bool SemiAutoCycle::attemptRecovery() {
+    ClearCore::ConnectorUsb.SendLine("[SemiAutoCycle] Attempting recovery...");
+
+    if (_yAxis) {
+        // Stop any current motion
+        _yAxis->Stop();
+
+        // Reset the motor
+        if (!_yAxis->ResetAndPrepare()) {
+            ClearCore::ConnectorUsb.SendLine("[SemiAutoCycle] Motor reset failed");
+            return false;
+        }
+
+        // Return to a known good state
+        _spindleOn = false;
+        transitionTo(Ready);
+        return true;
+    }
+    return false;
+}
+
+void SemiAutoCycle::forceReset() {
+    ClearCore::ConnectorUsb.SendLine("[SemiAutoCycle] Force resetting cycle state");
+
+    if (_yAxis) {
+        // Stop any ongoing motion
+        _yAxis->Stop();
+        _yAxis->ClearAlerts();
+    }
+
+    _spindleOn = false;
+    _feedHold = false;
+    transitionTo(Ready);
 }
 
 
+// Add this helper method to SemiAutoCycle class
+float SemiAutoCycle::calculateVelocityScale(float feedRateInchesPerSec) const {
+    if (!_yAxis) return 1.0f;
+
+    float feedRateStepsPerSec = feedRateInchesPerSec * _yAxis->GetStepsPerInch();
+    // Assuming MAX_VELOCITY_Y is accessible, otherwise use a reasonable value like 10000.0f
+    float velocityScale = feedRateStepsPerSec / 10000.0f;
+
+    // Clamp the velocity scale
+    if (velocityScale < 0.01f) velocityScale = 0.01f;
+    if (velocityScale > 1.0f) velocityScale = 1.0f;
+
+    return velocityScale;
+}
+
+// Add this helper method to SemiAutoCycle class
+const char* SemiAutoCycle::stateToString(State state) const {
+    switch (state) {
+    case Idle: return "Idle";
+    case Ready: return "Ready";
+    case Returning: return "Returning";
+    case MovingToRetract: return "MovingToRetract";
+    case MovingToStart: return "MovingToStart";
+    case WaitingAtStart: return "WaitingAtStart";
+    case FeedingToStop: return "FeedingToStop";
+    case Retracting: return "Retracting";
+    case Paused: return "Paused";
+    case Complete: return "Complete";
+    case Canceled: return "Canceled";
+    case Error: return "Error";
+    default: return "Unknown";
+    }
+}
 
 // State queries for UI
 bool SemiAutoCycle::isSpindleOn() const { return _spindleOn; }
@@ -160,49 +279,110 @@ void SemiAutoCycle::transitionTo(State newState) {
 }
 
 void SemiAutoCycle::updateStateMachine() {
+    // Debug state transitions
+    static State lastState = Idle;
+    if (_state != lastState) {
+        ClearCore::ConnectorUsb.Send("[SemiAutoCycle] State change: ");
+        ClearCore::ConnectorUsb.Send(stateToString(lastState));
+        ClearCore::ConnectorUsb.Send(" -> ");
+        ClearCore::ConnectorUsb.SendLine(stateToString(_state));
+        lastState = _state;
+    }
+
     switch (_state) {
     case Ready:
         // Wait for user to press "Feed to Stop"
         break;
+
     case FeedingToStop:
         if (_yAxis) {
             float stopPos = _cutData.cutEndPoint;
 
-            // Calculate the feed rate as a velocity scale
-            float feedRateInchesPerSec = _feedRate / 60.0f;
-            float feedRateStepsPerSec = feedRateInchesPerSec * _yAxis->GetStepsPerInch();
-            float velocityScale = feedRateStepsPerSec / MAX_VELOCITY_Y;
-
-            // Clamp the velocity scale
-            if (velocityScale < 0.01f) velocityScale = 0.01f;
-            if (velocityScale > 1.0f) velocityScale = 1.0f;
-
-            if (!_yAxis->IsMoving()) {
-                _yAxis->MoveTo(stopPos, velocityScale);
-            }
+            // Check if we're already at the stop position
             if (std::abs(_yAxis->GetPosition() - stopPos) < 0.01f) {
+                ClearCore::ConnectorUsb.SendLine("[FeedingToStop] Already at stop position, transitioning to Returning");
                 transitionTo(Returning);
+                return;
             }
+
+            // Reset and prepare the motor if not moving
+            if (!_yAxis->IsMoving()) {
+                // Make sure the motor is ready for motion
+                if (!_yAxis->ResetAndPrepare()) {
+                    ClearCore::ConnectorUsb.SendLine("[FeedingToStop] Motor reset failed, retrying...");
+                    return; // Will retry on next update
+                }
+
+                // Calculate velocity scale correctly
+                float feedRateInchesPerSec = _feedRate / 60.0f;
+                float velocityScale = feedRateInchesPerSec / 10.0f; // Assuming 10 in/sec max
+
+                // Clamp velocity scale
+                if (velocityScale < 0.01f) velocityScale = 0.01f;
+                if (velocityScale > 1.0f) velocityScale = 1.0f;
+
+                ClearCore::ConnectorUsb.Send("[FeedingToStop] Moving to: ");
+                ClearCore::ConnectorUsb.Send(stopPos);
+                ClearCore::ConnectorUsb.Send(" at velocity scale: ");
+                ClearCore::ConnectorUsb.SendLine(velocityScale);
+
+                if (!_yAxis->MoveTo(stopPos, velocityScale)) {
+                    ClearCore::ConnectorUsb.SendLine("[FeedingToStop] Failed to start move! Retrying");
+                    return; // Will retry on next update
+                }
+            }
+
+            // Rest of existing code...
         }
         break;
-
 
 
     case Returning:
         if (_yAxis) {
-            if (!_yAxis->IsMoving()) {
-                _yAxis->MoveTo(_feedStartPos, 1.0f); // Return at full speed
-            }
+            // Debug info
+            ClearCore::ConnectorUsb.Send("[DEBUG] Returning to position: ");
+            ClearCore::ConnectorUsb.SendLine(_feedStartPos);
+
+            // Check if already at return position
             if (std::abs(_yAxis->GetPosition() - _feedStartPos) < 0.01f) {
-                // Unlatch the button and go back to ready
+                ClearCore::ConnectorUsb.SendLine("[Returning] Already at start position, cycle complete");
                 _spindleOn = false;
                 transitionTo(Ready);
+                return;
             }
+
+            // Reset and prepare the motor if not moving
+            if (!_yAxis->IsMoving()) {
+                // Reset and prepare the motor before attempting move
+                if (!_yAxis->ResetAndPrepare()) {
+                    ClearCore::ConnectorUsb.SendLine("[Returning] Motor reset failed, retrying...");
+                    static uint32_t lastResetAttempt = 0;
+                    uint32_t now = ClearCore::TimingMgr.Milliseconds();
+
+                    if (now - lastResetAttempt > 1000) {  // Retry every second
+                        lastResetAttempt = now;
+                        // No state transition - will retry on next update
+                        return;
+                    }
+                }
+                else {
+                    ClearCore::ConnectorUsb.SendLine("[DEBUG] Starting return move");
+                    if (!_yAxis->MoveTo(_feedStartPos, 1.0f)) {
+                        ClearCore::ConnectorUsb.SendLine("[Returning] Failed to start return move! Retrying...");
+                        return; // Will retry on next update
+                    }
+                }
+            }
+
+            // Rest of existing code...
+            // Check completion and stall detection...
         }
         break;
+
     case Paused:
         // Hold all motion
         break;
+
     case Complete:
     case Canceled:
     case Error:
@@ -211,4 +391,3 @@ void SemiAutoCycle::updateStateMachine() {
         break;
     }
 }
-

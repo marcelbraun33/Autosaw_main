@@ -29,6 +29,9 @@ public:
     // Set hardware axis pointers (must be called before start)
     void setAxes(YAxis* y);
 
+public:
+    // Add this public method
+    bool attemptRecovery();
 
     // Cycle interface
     void start() override;
@@ -67,8 +70,21 @@ public:
     int currentCutIndex() const;
     int totalSlices() const;
     State getState() const { return _state; }
+    
+    // SemiAuto 
+    float& getFeedRateRef() { return _feedRate; }
+    YAxis* getYAxis() const { return _yAxis; }
+    void forceReset();
+
+    // In SemiAutoCycle.h, add:
+    float getCutEndPoint() const { return _cutData.cutEndPoint; }
+    float& getCutPressureRef() { return _cutPressure; }  // Return reference to cut pressure
+
 
 private:
+    float calculateVelocityScale(float feedRateInchesPerSec) const;
+    const char* stateToString(State state) const;
+
     void transitionTo(State newState);
     void updateStateMachine();
 

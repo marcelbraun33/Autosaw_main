@@ -3,6 +3,7 @@
 
 #include <ClearCore.h>
 #include "HomingHelper.h"
+#include "Config.h"
 
 class YAxis {
 public:
@@ -32,6 +33,44 @@ public:
 
     // In YAxis.h
     float GetStepsPerInch() const { return _stepsPerInch; }
+
+    // FIXED VERSION:
+    void UpdateVelocity(float velocityScale) {
+        if (_isMoving) {
+            // Use a proper value for regular moves, not homing
+            _motor->VelMax(static_cast<uint32_t>(10000.0f * velocityScale)); // Use MAX_VELOCITY_Y
+        }
+    }
+    // Add this to your YAxis class:
+    bool ResetAndPrepare() {
+        // Clear any alerts
+        ClearAlerts();
+
+        // Ensure motor is enabled
+        _motor->EnableRequest(true);
+
+        // Wait a short time for enable to take effect
+        Delay_ms(100);
+
+        // Check if the motor is ready
+        if (_motor->StatusReg().bit.ReadyState != MotorDriver::MOTOR_READY) {
+            // Try a fault recovery procedure
+            _motor->EnableRequest(false);
+            Delay_ms(100);
+            _motor->EnableRequest(true);
+            Delay_ms(100);
+        }
+
+        // Return success if motor is ready for motion
+        return _motor->StatusReg().bit.ReadyState == MotorDriver::MOTOR_READY
+            && !_motor->StatusReg().bit.AlertsPresent;
+    }
+
+    // Add this method to YAxis.h
+    bool HasAlerts() const {
+        return _motor && _motor->StatusReg().bit.AlertsPresent;
+    }
+
 
 
     // Legacy compatibility

@@ -23,6 +23,9 @@ void SemiAutoScreen::onShow() {
         _cycle->setAxes(&MotionController::Instance().getYAxis());
     }
 
+    _feedRateAdjustActive = false;
+    _mpgLastValue = 0;
+
     updateDisplays();
     updateButtonStates();
 }
@@ -30,6 +33,7 @@ void SemiAutoScreen::onShow() {
 void SemiAutoScreen::onHide() {
     // Optionally cancel the cycle when leaving the screen
     // CycleManager::Instance().cancelCycle();
+    UIInputManager::Instance().unbindField();
 }
 
 void SemiAutoScreen::handleEvent(const genieFrame& e) {
@@ -52,21 +56,55 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
         }
         break;
 
-        // Example for plus/minus feed rate buttons
-    case 15: // Increase feed rate
+        // Feed rate adjust button
+    case 15:
     {
-        float currentRate = _cycle->getFeedRate();
-        float newRate = currentRate + 1.0f; // Increment by 1 in/min
-        _cycle->setFeedRate(newRate);
-        updateDisplays();
+        auto& ui = UIInputManager::Instance();
+
+        // If already editing a field, toggle off
+        if (ui.isEditing()) {
+            if (ui.isFieldActive(15)) { // 15 is the button index
+                ui.unbindField();
+                _feedRateAdjustActive = false;
+                genie.WriteObject(GENIE_OBJ_WINBUTTON, 15, 0);
+            }
+            else {
+                // If editing another field, just toggle this button off
+                genie.WriteObject(GENIE_OBJ_WINBUTTON, 15, 0);
+            }
+        }
+        else {
+            // Start feed rate editing mode - use actual reference to feed rate
+            ui.bindField(15, 7, // Button 15 controlling LED Digits 7
+                &_cycle->getFeedRateRef(), 1.0f, 50.0f, 0.5f, 1);
+            _feedRateAdjustActive = true;
+            genie.WriteObject(GENIE_OBJ_WINBUTTON, 15, 1);
+        }
     }
     break;
-    case 41: // Decrease feed rate
+
+    // Cut pressure adjust button
+    case 41:
     {
-        float currentRate = _cycle->getFeedRate();
-        float newRate = (currentRate > 1.0f) ? (currentRate - 1.0f) : 1.0f; // Don't go below 1 in/min
-        _cycle->setFeedRate(newRate);
-        updateDisplays();
+        auto& ui = UIInputManager::Instance();
+
+        // If already editing a field, toggle off
+        if (ui.isEditing()) {
+            if (ui.isFieldActive(41)) { // 41 is the button index
+                ui.unbindField();
+                genie.WriteObject(GENIE_OBJ_WINBUTTON, 41, 0);
+            }
+            else {
+                // If editing another field, just toggle this button off
+                genie.WriteObject(GENIE_OBJ_WINBUTTON, 41, 0);
+            }
+        }
+        else {
+            // Start cut pressure editing mode
+            ui.bindField(41, 27, // Button 41 controlling LED Digits 27
+                &_cycle->getCutPressureRef(), 0.0f, 100.0f, 1.0f, 0);
+            genie.WriteObject(GENIE_OBJ_WINBUTTON, 41, 1);
+        }
     }
     break;
 
@@ -81,6 +119,19 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
 void SemiAutoScreen::update() {
     CycleManager::Instance().update();
     _cycle = static_cast<SemiAutoCycle*>(CycleManager::Instance().currentCycle());
+
+    // If feed rate is being edited, real-time update LED and cycle
+    if (_feedRateAdjustActive && _cycle) {
+        // Update offset LED (LED 2)
+        genie.WriteObject(GENIE_OBJ_LED, 2, _cycle->isFeedRateOffsetActive() ? 1 : 0);
+
+        // Update the active movement if a feed is in progress
+        if (_cycle->getState() == SemiAutoCycle::FeedingToStop) {
+            // No need to manually update velocity - UIInputManager handles this
+            // when it updates the feed rate value through the bound field
+        }
+    }
+
     updateDisplays();
     updateButtonStates();
 }
@@ -88,7 +139,6 @@ void SemiAutoScreen::update() {
 void SemiAutoScreen::updateDisplays() {
     if (!_cycle) return;
 
-    if (!_cycle) return;
     genie.WriteObject(GENIE_OBJ_LED, 2, _cycle->isFeedRateOffsetActive() ? 1 : 0);
     genie.WriteObject(GENIE_OBJ_LED, 4, _cycle->isCutPressureOffsetActive() ? 1 : 0);
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, 27, static_cast<uint16_t>(_cycle->getCutPressure() * 100.0f));
@@ -104,6 +154,8 @@ void SemiAutoScreen::updateButtonStates() {
     if (!_cycle) return;
     bool isLatched = (_cycle->getState() == SemiAutoCycle::FeedingToStop) ||
         (_cycle->getState() == SemiAutoCycle::Returning);
+    genie.WriteObject(GENIE_OBJ_WINBUTTON, 11, isLatched ? 1 : 0); // Feed to Stop button
     genie.WriteObject(GENIE_OBJ_WINBUTTON, 12, _cycle->isPaused() ? 1 : 0);
     genie.WriteObject(GENIE_OBJ_WINBUTTON, 10, _cycle->isSpindleOn() ? 1 : 0);
 }
+

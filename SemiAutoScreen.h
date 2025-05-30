@@ -19,6 +19,9 @@ private:
     void updateDisplays();
     void updateButtonStates();
     SemiAutoCycle* _cycle = nullptr;
+    bool _feedRateAdjustActive = false;
+    int _mpgLastValue = 0;
+
 
 
     ScreenManager& _mgr;

@@ -12,7 +12,8 @@ struct Settings {
     float rapidRate;
     float manualOverrideRPM; 
     float cutPressure = 0.0f; // Add this line
-    };
+    float feedRateIncrement = 0.5f; // Default increment for feed rate adjustment
+};
 
 
 
