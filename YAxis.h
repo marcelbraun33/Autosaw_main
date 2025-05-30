@@ -33,6 +33,7 @@ public:
     // Legacy compatibility
     void Home() { StartHoming(); }
     void ClearAlerts();
+    void Jog(float deltaInches, float velocityScale);
 
 private:
     // Internal state

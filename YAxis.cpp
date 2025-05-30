@@ -31,6 +31,10 @@ YAxis::YAxis()
 YAxis::~YAxis() {
     delete _homingHelper;
 }
+void YAxis::Jog(float deltaInches, float velocityScale) {
+    MoveTo(GetPosition() + deltaInches, velocityScale);
+}
+
 
 void YAxis::Setup() {
     _motor->HlfbMode(MotorDriver::HLFB_MODE_HAS_BIPOLAR_PWM);

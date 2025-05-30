@@ -30,6 +30,8 @@ public:
     bool IsHomed() const;
     bool IsHoming() const;
     void ClearAlerts();
+    void Jog(float deltaInches, float velocityScale);
+
 
 private:
     // Internal state

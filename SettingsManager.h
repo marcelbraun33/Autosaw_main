@@ -11,7 +11,10 @@ struct Settings {
     float feedRate;
     float rapidRate;
     float manualOverrideRPM; 
-};
+    float cutPressure = 0.0f; // Add this line
+    };
+
+
 
 class SettingsManager {
 public:

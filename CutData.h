@@ -22,6 +22,7 @@
         float cutEndPoint = 0.0f;              // Y coordinate for cut end (inches)
         float retractDistance = 0.0f;          // Retract distance after cut (inches)
         float cutLength = 0.0f;                // Length of the cut (inches)
+        float jogIncrement = 0.01f; // Default value, can be set from JogXScreen
     };
 
   

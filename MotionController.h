@@ -60,6 +60,8 @@ public:
     bool StartHomingAxis(AxisId axis);
     bool StartHomingAll();  // optional convenience for full-machine homing
 
+    XAxis& getXAxis() { return xAxis; }
+    YAxis& getYAxis() { return yAxis; }
 
 private:
     MotionController();

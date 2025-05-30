@@ -149,6 +149,9 @@ void XAxis::EmergencyStop() {
     _motor->MoveStopAbrupt();
     _isMoving = false;
 }
+void XAxis::Jog(float deltaInches, float velocityScale) {
+    MoveTo(GetPosition() + deltaInches, velocityScale);
+}
 
 float XAxis::GetPosition() const {
     return static_cast<float>(_motor->PositionRefCommanded()) / _stepsPerInch;

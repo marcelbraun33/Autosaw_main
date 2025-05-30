@@ -80,9 +80,11 @@
     <TargetOSAndVersion>Arduino</TargetOSAndVersion>
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="AutoCutCycle.cpp" />
     <ClCompile Include="AutoCutScreen.cpp" />
     <ClCompile Include="AutosawController.cpp" />
     <ClCompile Include="CutSequenceController.cpp" />
+    <ClCompile Include="CycleManager.cpp" />
     <ClCompile Include="EStopManager.cpp" />
     <ClCompile Include="FileManager.cpp" />
     <ClCompile Include="HomingHelper.cpp" />
@@ -95,6 +97,7 @@
     <ClCompile Include="MPGJogManager.cpp" />
     <ClCompile Include="pendantmanager.cpp" />
     <ClCompile Include="Screenmanager.cpp" />
+    <ClCompile Include="SemiAutoCycle.cpp" />
     <ClCompile Include="SemiAutoScreen.cpp" />
     <ClCompile Include="SettingsScreen.cpp" />
     <ClCompile Include="SettingsManager.cpp" />
@@ -115,11 +118,14 @@
     <ProjectCapability Include="VisualMicro" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AutoCutCycle.h" />
     <ClInclude Include="AutoCutScreen.h" />
     <ClInclude Include="AutosawController.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="CutData.h" />
     <ClInclude Include="CutSequenceController.h" />
+    <ClInclude Include="Cycle.h" />
+    <ClInclude Include="CycleManager.h" />
     <ClInclude Include="EStopManager.h" />
     <ClInclude Include="FileManager.h" />
     <ClInclude Include="HomingHelper.h" />
@@ -133,6 +139,7 @@
     <ClInclude Include="Pendantmanager.h" />
     <ClInclude Include="Screen.h" />
     <ClInclude Include="screenmanager.h" />
+    <ClInclude Include="SemiAutoCycle.h" />
     <ClInclude Include="SemiAutoScreen.h" />
     <ClInclude Include="SettingsManager.h" />
     <ClInclude Include="SettingsScreen.h" />

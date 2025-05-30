@@ -261,6 +261,7 @@ void JogXScreen::captureStockLength() {
 
 void JogXScreen::captureIncrement() {
     auto& cutData = _mgr.GetCutData();
+
     float current = MotionController::Instance().getAxisPosition(AXIS_X);
     float display = cutData.useStockZero ? (current - cutData.positionZero) : current;
     if (display < 0.0f) {

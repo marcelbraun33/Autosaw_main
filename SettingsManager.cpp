@@ -1,4 +1,3 @@
-
 // SettingsManager.cpp
 #include "SettingsManager.h"
 #include <genieArduinoDEV.h>
@@ -17,10 +16,18 @@ SettingsManager::SettingsManager() {
     settings_.defaultRPM = 3600.0f;
     settings_.feedRate = 10.0f;
     settings_.rapidRate = 50.0f;
+    settings_.cutPressure = 0.0f; // Initialize cutPressure
 }
 
 void SettingsManager::load() {
     // TODO: read from SD card or EEPROM
+    // Example (pseudo-code):
+    // settings_.bladeDiameter = FileManager::ReadFloat("bladeDiameter", 1.0f);
+    // settings_.bladeThickness = FileManager::ReadFloat("bladeThickness", 0.05f);
+    // settings_.defaultRPM = FileManager::ReadFloat("defaultRPM", 3600.0f);
+    // settings_.feedRate = FileManager::ReadFloat("feedRate", 10.0f);
+    // settings_.rapidRate = FileManager::ReadFloat("rapidRate", 50.0f);
+    // settings_.cutPressure = FileManager::ReadFloat("cutPressure", 0.0f);
 }
 
 void SettingsManager::save() {
@@ -40,6 +47,15 @@ void SettingsManager::save() {
     if (settings_.rapidRate > 300.0f) settings_.rapidRate = 300.0f;
     if (settings_.rapidRate < 0.0f)   settings_.rapidRate = 0.0f;
 
-    // TODO: write to SD card or EEPROM
-}
+    if (settings_.cutPressure > 100.0f) settings_.cutPressure = 100.0f;
+    if (settings_.cutPressure < 0.0f)   settings_.cutPressure = 0.0f;
 
+    // TODO: write to SD card or EEPROM
+    // Example (pseudo-code):
+    // FileManager::WriteFloat("bladeDiameter", settings_.bladeDiameter);
+    // FileManager::WriteFloat("bladeThickness", settings_.bladeThickness);
+    // FileManager::WriteFloat("defaultRPM", settings_.defaultRPM);
+    // FileManager::WriteFloat("feedRate", settings_.feedRate);
+    // FileManager::WriteFloat("rapidRate", settings_.rapidRate);
+    // FileManager::WriteFloat("cutPressure", settings_.cutPressure);
+}
