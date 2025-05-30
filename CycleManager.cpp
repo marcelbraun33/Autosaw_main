@@ -43,6 +43,7 @@ void CycleManager::update() {
     }
 }
 
+
 bool CycleManager::hasActiveCycle() const {
     return _currentCycle && _currentCycle->isActive();
 }

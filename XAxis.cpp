@@ -2,8 +2,15 @@
 #include "XAxis.h"
 #include "Config.h"
 #include "ClearCore.h"
+// In XAxis.cpp
+#include "Config.h"
+// Replace:
+// static constexpr float MAX_VELOCITY = 10000.0f;
+// With:
+// Use MAX_VELOCITY_X from Config.h
 
-static constexpr float MAX_VELOCITY = 10000.0f;   // steps/s
+
+
 static constexpr float MAX_ACCELERATION = 100000.0f;  // steps/s^2
 
 XAxis::XAxis()
@@ -35,7 +42,7 @@ XAxis::~XAxis() {
 void XAxis::Setup() {
     _motor->HlfbMode(MotorDriver::HLFB_MODE_HAS_BIPOLAR_PWM);
     _motor->HlfbCarrier(MotorDriver::HLFB_CARRIER_482_HZ);
-    _motor->VelMax(MAX_VELOCITY);
+    _motor->VelMax(MAX_VELOCITY_X);
     _motor->AccelMax(MAX_ACCELERATION);
     ClearAlerts();
     _isSetup = true;
@@ -131,7 +138,7 @@ bool XAxis::MoveTo(float positionInches, float velocityScale) {
     int32_t delta = tgtSteps - curSteps;
     if (delta == 0) return true;
 
-    _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * velocityScale));
+    _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY_X * velocityScale));
     ClearCore::ConnectorUsb.Send("[X-Axis] MoveTo: ");
     ClearCore::ConnectorUsb.Send(_targetPos);
     ClearCore::ConnectorUsb.SendLine(" inches");

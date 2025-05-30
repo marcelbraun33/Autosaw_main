@@ -30,10 +30,15 @@ public:
     bool IsHomed() const;
     bool IsHoming() const;
 
+    // In YAxis.h
+    float GetStepsPerInch() const { return _stepsPerInch; }
+
+
     // Legacy compatibility
     void Home() { StartHoming(); }
     void ClearAlerts();
     void Jog(float deltaInches, float velocityScale);
+
 
 private:
     // Internal state

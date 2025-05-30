@@ -5,7 +5,7 @@
 #include <ClearCore.h>
 
 // Velocity/accel constants for Z axis
-static constexpr float MAX_VELOCITY_Z = 1000.0f;    // steps/s
+
 static constexpr float MAX_ACCEL_Z = 10000.0f;   // steps/s^2
 
 ZAxis::ZAxis()

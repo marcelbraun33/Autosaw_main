@@ -60,6 +60,18 @@
 #define RPM_STEP              10
 #define RPM_SCALE             1.0f
 
+
+// Motor velocity and acceleration constants
+constexpr float MAX_VELOCITY_X = 10000.0f;   // steps/s for X axis
+constexpr float MAX_VELOCITY_Y = 10000.0f;   // steps/s for Y axis
+constexpr float MAX_VELOCITY_Z = 10000.0f;   // steps/s for Z axis
+constexpr float MAX_ACCELERATION_X = 100000.0f;  // steps/s^2
+constexpr float MAX_ACCELERATION_Y = 100000.0f;  // steps/s^2
+constexpr float MAX_ACCELERATION_Z = 100000.0f;  // steps/s^2
+
+
+
+
 // === Jog Encoder Scaling ===
 #define ENCODER_COUNTS_PER_CLICK  4
 #define JOG_MULTIPLIER_X1         1

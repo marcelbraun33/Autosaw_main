@@ -1,6 +1,7 @@
 #include "SemiAutoCycle.h"
 #include <cstring>
 #include <cmath>
+#include "Config.h"
 
 
 
@@ -78,7 +79,14 @@ const char* SemiAutoCycle::errorMessage() const {
 }
 
 // UI/Control methods
-void SemiAutoCycle::setFeedRate(float rate) { _feedRate = rate; }
+void SemiAutoCycle::setFeedRate(float rate) {
+    _feedRate = rate;
+    // Log the new feed rate for debugging
+    ClearCore::ConnectorUsb.Send("[SemiAutoCycle] Feed rate set to: ");
+    ClearCore::ConnectorUsb.Send(rate);
+    ClearCore::ConnectorUsb.SendLine(" in/min");
+}
+
 void SemiAutoCycle::setCutPressure(float pressure) { _cutPressure = pressure; }
 void SemiAutoCycle::setSpindleOn(bool on) { _spindleOn = on; /* Add hardware control here */ }
 void SemiAutoCycle::moveTableToRetract() { transitionTo(MovingToRetract); }
@@ -159,18 +167,27 @@ void SemiAutoCycle::updateStateMachine() {
     case FeedingToStop:
         if (_yAxis) {
             float stopPos = _cutData.cutEndPoint;
-            float baseFeed = _settings->settings().feedRate;
-            float scale = baseFeed > 0.0f ? (_feedRate / baseFeed) : 1.0f;
-            if (scale < 0.01f) scale = 0.01f;
-            if (scale > 1.0f) scale = 1.0f;
+
+            // Calculate the feed rate as a velocity scale
+            float feedRateInchesPerSec = _feedRate / 60.0f;
+            float feedRateStepsPerSec = feedRateInchesPerSec * _yAxis->GetStepsPerInch();
+            float velocityScale = feedRateStepsPerSec / MAX_VELOCITY_Y;
+
+            // Clamp the velocity scale
+            if (velocityScale < 0.01f) velocityScale = 0.01f;
+            if (velocityScale > 1.0f) velocityScale = 1.0f;
+
             if (!_yAxis->IsMoving()) {
-                _yAxis->MoveTo(stopPos, scale);
+                _yAxis->MoveTo(stopPos, velocityScale);
             }
             if (std::abs(_yAxis->GetPosition() - stopPos) < 0.01f) {
                 transitionTo(Returning);
             }
         }
         break;
+
+
+
     case Returning:
         if (_yAxis) {
             if (!_yAxis->IsMoving()) {

@@ -8,6 +8,7 @@ public:
     void startSemiAutoCycle(CutData& cutData);
     void startAutoCutCycle(CutData& cutData);
 
+
     void pauseCycle();
     void resumeCycle();
     void cancelCycle();

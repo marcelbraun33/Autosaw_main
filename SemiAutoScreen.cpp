@@ -4,7 +4,7 @@
 #include "UIInputManager.h"
 #include <cmath>
 #include "MotionController.h"
-
+#include "Config.h"
 
 extern Genie genie;
 
@@ -21,14 +21,11 @@ void SemiAutoScreen::onShow() {
     // Wire up axes to the cycle
     if (_cycle) {
         _cycle->setAxes(&MotionController::Instance().getYAxis());
-
     }
 
     updateDisplays();
     updateButtonStates();
 }
-
-
 
 void SemiAutoScreen::onHide() {
     // Optionally cancel the cycle when leaving the screen
@@ -55,9 +52,24 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
         }
         break;
 
+        // Example for plus/minus feed rate buttons
+    case 15: // Increase feed rate
+    {
+        float currentRate = _cycle->getFeedRate();
+        float newRate = currentRate + 1.0f; // Increment by 1 in/min
+        _cycle->setFeedRate(newRate);
+        updateDisplays();
+    }
+    break;
+    case 41: // Decrease feed rate
+    {
+        float currentRate = _cycle->getFeedRate();
+        float newRate = (currentRate > 1.0f) ? (currentRate - 1.0f) : 1.0f; // Don't go below 1 in/min
+        _cycle->setFeedRate(newRate);
+        updateDisplays();
+    }
+    break;
 
-    case 15: /* UI input for feed rate, then _cycle->setFeedRate(newRate); */ break;
-    case 41: /* UI input for cut pressure, then _cycle->setCutPressure(newPressure); */ break;
     case 42: if (_cycle->isAtRetract()) _cycle->moveTableToStart(); else _cycle->moveTableToRetract(); break;
 
     default: break;
@@ -74,6 +86,8 @@ void SemiAutoScreen::update() {
 }
 
 void SemiAutoScreen::updateDisplays() {
+    if (!_cycle) return;
+
     if (!_cycle) return;
     genie.WriteObject(GENIE_OBJ_LED, 2, _cycle->isFeedRateOffsetActive() ? 1 : 0);
     genie.WriteObject(GENIE_OBJ_LED, 4, _cycle->isCutPressureOffsetActive() ? 1 : 0);
