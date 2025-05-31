@@ -1,4 +1,5 @@
 #pragma once
+
 #include "Cycle.h"
 #include "XAxis.h"
 #include "YAxis.h"
@@ -10,9 +11,7 @@ public:
     enum State {
         Idle,
         Ready,
-   
         Returning,
-
         MovingToRetract,
         MovingToStart,
         WaitingAtStart,
@@ -24,80 +23,87 @@ public:
         Error
     };
 
+    // Constructor: initializes the underlying CutData reference
     SemiAutoCycle(CutData& cutData);
+    bool _hasStartedMove = false;
 
-    // Set hardware axis pointers (must be called before start)
+
+    // Must set Y axis pointer before calling start()
     void setAxes(YAxis* y);
 
-public:
-    // Add this public method
-    bool attemptRecovery();
-
-    // Cycle interface
+    // Core Cycle interface
     void start() override;
     void pause() override;
     void resume() override;
     void cancel() override;
     void update() override;
 
-    bool isActive() const override;
+    bool isActive()   const override;
     bool isComplete() const override;
-    bool isPaused() const override;
-    bool hasError() const override;
+    bool isPaused()   const override;
+    bool hasError()   const override;
     const char* errorMessage() const override;
 
-    // UI/Control methods
+    // Recovery and reset
+    bool attemptRecovery();
+    void forceReset();
+
+    // Live-feed adjustments
     void setFeedRate(float rate);
     void setCutPressure(float pressure);
+    void updateFeedRateVelocity();
+
+    // Spindle and table commands
     void setSpindleOn(bool on);
     void moveTableToRetract();
     void moveTableToStart();
     void incrementCutIndex(int delta);
     void feedToStop();
 
-    // State queries for UI
-    bool isSpindleOn() const;
-    bool isAtRetract() const;
-    bool isFeedRateOffsetActive() const;
-    bool isCutPressureOffsetActive() const;
-    float getCutPressure() const;
-    float getFeedRate() const;
+    // State & Data Queries for UI
+    State getState()                      const { return _state; }
+    bool  isSpindleOn()                   const;
+    bool  isAtRetract()                   const;
+    bool  isFeedRateOffsetActive()        const;
+    bool  isCutPressureOffsetActive()     const;
+    float getFeedRate()                   const { return _feedRate; }
+    float getCutPressure()                const { return _cutPressure; }
+    float commandedRPM()                  const;
+    float currentThickness()              const;
+    float distanceToGo()                  const;
+    float getDisplayDistanceToGo()        const { return _displayDist; }
+    float getCutEndPoint()                const { return _cutData.cutEndPoint; }
+    int   currentCutIndex()               const { return _cutIndex; }
+    int   totalSlices()                   const { return _cutData.totalSlices; }
 
-    // Data for UI display
-    float commandedRPM() const;
-    float currentThickness() const;
-    float distanceToGo() const;
-    int currentCutIndex() const;
-    int totalSlices() const;
-    State getState() const { return _state; }
-    
-    // SemiAuto 
+    // References for UI binding
     float& getFeedRateRef() { return _feedRate; }
-    YAxis* getYAxis() const { return _yAxis; }
-    void forceReset();
+    float& getCutPressureRef() { return _cutPressure; }
 
-    // In SemiAutoCycle.h, add:
-    float getCutEndPoint() const { return _cutData.cutEndPoint; }
-    float& getCutPressureRef() { return _cutPressure; }  // Return reference to cut pressure
-
+    // Axis access for screens
+    YAxis* getYAxis()                     const { return _yAxis; }
 
 private:
-    float calculateVelocityScale(float feedRateInchesPerSec) const;
-    const char* stateToString(State state) const;
-
+    // Internal state machine helpers
     void transitionTo(State newState);
     void updateStateMachine();
+    const char* stateToString(State state) const;
+    float calculateVelocityScale(float feedRateInchesPerSec) const;
 
-    State _state;
-    int _cutIndex;
-    bool _spindleOn;
-    bool _feedHold;
-    float _feedRate;
-    float _cutPressure;
-    char _errorMsg[64];
-    float _feedStartPos = 0.0f;
+    // Internal fields
+    State    _state = Idle;
+    int      _cutIndex = 0;
+    bool     _spindleOn = false;
+    bool     _feedHold = false;
+    float    _feedRate = 0.0f;
+    float    _cutPressure = 0.0f;
+    char     _errorMsg[64] = { 0 };
+    float    _feedStartPos = 0.0f;
+    float    _displayDist = 0.0f;
 
-    XAxis* _xAxis;
-    YAxis* _yAxis;
-    SettingsManager* _settings;
+    XAxis* _xAxis = nullptr;
+    YAxis* _yAxis = nullptr;
+    SettingsManager* _settings = nullptr;
+
+    CutData& _cutData;
 };

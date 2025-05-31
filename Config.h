@@ -106,8 +106,7 @@ constexpr float MAX_ACCELERATION_Z = 100000.0f;  // steps/s^2
 #define LEDDIGITS_CUT_PRESSURE             27  // Form2 - New from object sheet
 #define LEDDIGITS_THICKNESS_F2             28  // Form2 - New from object sheet
 #define LEDDIGITS_DISTANCE_TO_GO_F2        29  // Form2 - New from object sheet
-#define LEDDIGITS_CUTTING_POSITION_F2      32  // Form2 - New from object sheet
-#define LEDDIGITS_CUTTING_TOTAL_F2         33  // Form2 - New from object sheet
+
 
 #define LEDDIGITS_DIAMETER_SETTINGS        8   // Form3
 #define LEDDIGITS_THICKNESS_SETTINGS       9   // Form3
@@ -188,7 +187,7 @@ constexpr float MAX_ACCELERATION_Z = 100000.0f;  // steps/s^2
 #define WINBUTTON_ADJUST_FEED              15
 #define WINBUTTON_SETTINGS_SEMI            16
 #define WINBUTTON_ADJUST_CUT_PRESSURE      41  // Form2 - New from object sheet
-#define WINBUTTON_TABLE_TO_POSITION        42  // Form2 - New from object sheet
+#define Home_Y                           42  // Form2 - New from object sheet
 #define WINBUTTON_INC_MINUS_F2             50  // Form2 - New from object sheet
 
 // Form3 (Settings)

@@ -4,8 +4,6 @@
 #include "ClearCore.h"
 
 static constexpr float MAX_ACCELERATION = 100000.0f;  // steps/s^2
-// In YAxis.cpp
-
 
 YAxis::YAxis()
     : _stepsPerInch(TABLE_STEPS_PER_INCH)
@@ -32,10 +30,10 @@ YAxis::YAxis()
 YAxis::~YAxis() {
     delete _homingHelper;
 }
+
 void YAxis::Jog(float deltaInches, float velocityScale) {
     MoveTo(GetPosition() + deltaInches, velocityScale);
 }
-
 
 void YAxis::Setup() {
     _motor->HlfbMode(MotorDriver::HLFB_MODE_HAS_BIPOLAR_PWM);
@@ -114,6 +112,15 @@ void YAxis::Update() {
         ClearCore::ConnectorUsb.SendLine("[Y-Axis] Homing complete");
     }
 }
+// Add this to YAxis.cpp:
+float YAxis::GetActualPosition() const {
+    // If you have actual position feedback from the motor:
+    // return static_cast<float>(_motor->PositionRefFeedback()) / _stepsPerInch;
+    
+    // If not, use the commanded position as fallback:
+    return GetPosition(); // This calls the existing GetPosition() method
+}
+
 
 bool YAxis::MoveTo(float positionInches, float velocityScale) {
     if (!_isSetup) {
@@ -147,11 +154,12 @@ bool YAxis::MoveTo(float positionInches, float velocityScale) {
     if (delta == 0) return true;
 
     _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY_Y * velocityScale));
-    ClearCore::ConnectorUsb.Send("[Y-Axis] MoveTo: ");
-    ClearCore::ConnectorUsb.Send(_targetPos);
-    ClearCore::ConnectorUsb.SendLine(" inches");
+   // ClearCore::ConnectorUsb.Send("[Y-Axis] MoveTo: ");
+   // ClearCore::ConnectorUsb.Send(_targetPos);
+  //  ClearCore::ConnectorUsb.SendLine(" inches");
     return _motor->Move(delta);
 }
+
 
 void YAxis::Stop() {
     if (_isMoving) {
@@ -176,3 +184,27 @@ float YAxis::GetTorquePercent() const {
 bool YAxis::IsMoving() const { return !_motor->StepsComplete(); }
 bool YAxis::IsHomed()  const { return _isHomed; }
 bool YAxis::IsHoming() const { return _homingHelper->isBusy(); }
+
+void YAxis::UpdateVelocity(float velocityScale) {
+    if (_motor && _isSetup) {
+        uint32_t newVelMax = static_cast<uint32_t>(MAX_VELOCITY_Y * velocityScale);
+        _motor->VelMax(newVelMax);
+
+        // Debug output
+       // ClearCore::ConnectorUsb.Send("[YAxis::UpdateVelocity] Called. ");
+       // ClearCore::ConnectorUsb.Send("velocityScale: ");
+       // ClearCore::ConnectorUsb.Send(velocityScale, 4); // 4 decimal places
+       // ClearCore::ConnectorUsb.Send("  newVelMax: ");
+       // ClearCore::ConnectorUsb.Send(newVelMax);
+       // ClearCore::ConnectorUsb.Send("  IsMoving: ");
+       // ClearCore::ConnectorUsb.SendLine(_isMoving ? "YES" : "NO");
+
+        // Optional: print current position
+       // ClearCore::ConnectorUsb.Send("[YAxis::UpdateVelocity] CurrentPos: ");
+       // ClearCore::ConnectorUsb.SendLine(GetPosition(), 4);
+    }
+    else {
+        //ClearCore::ConnectorUsb.SendLine("[YAxis::UpdateVelocity] Not ready (_motor or _isSetup false)");
+    }
+}
+

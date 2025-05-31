@@ -155,5 +155,6 @@ void setup() {
 
 void loop() {
     AutoSawController::Instance().update();
+
 }
 
