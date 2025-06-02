@@ -1,4 +1,3 @@
-// YAxis.cpp
 #include "YAxis.h"
 #include "Config.h"
 #include "ClearCore.h"
@@ -112,15 +111,14 @@ void YAxis::Update() {
         ClearCore::ConnectorUsb.SendLine("[Y-Axis] Homing complete");
     }
 }
-// Add this to YAxis.cpp:
+
 float YAxis::GetActualPosition() const {
     // If you have actual position feedback from the motor:
     // return static_cast<float>(_motor->PositionRefFeedback()) / _stepsPerInch;
-    
+
     // If not, use the commanded position as fallback:
     return GetPosition(); // This calls the existing GetPosition() method
 }
-
 
 bool YAxis::MoveTo(float positionInches, float velocityScale) {
     if (!_isSetup) {
@@ -154,12 +152,11 @@ bool YAxis::MoveTo(float positionInches, float velocityScale) {
     if (delta == 0) return true;
 
     _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY_Y * velocityScale));
-   // ClearCore::ConnectorUsb.Send("[Y-Axis] MoveTo: ");
-   // ClearCore::ConnectorUsb.Send(_targetPos);
-  //  ClearCore::ConnectorUsb.SendLine(" inches");
+    // ClearCore::ConnectorUsb.Send("[Y-Axis] MoveTo: ");
+    // ClearCore::ConnectorUsb.Send(_targetPos);
+    // ClearCore::ConnectorUsb.SendLine(" inches");
     return _motor->Move(delta);
 }
-
 
 void YAxis::Stop() {
     if (_isMoving) {
@@ -205,6 +202,26 @@ void YAxis::UpdateVelocity(float velocityScale) {
     }
     else {
         //ClearCore::ConnectorUsb.SendLine("[YAxis::UpdateVelocity] Not ready (_motor or _isSetup false)");
+    }
+}
+
+void YAxis::SetTorqueLimit(float torquePercent) {
+    // Clamp torque value to valid range
+    if (torquePercent < 0.0f)
+        torquePercent = 0.0f;
+    if (torquePercent > 100.0f)
+        torquePercent = 100.0f;
+
+    _torqueLimit = torquePercent;
+
+    if (_motor && _isSetup) {
+        // Configure motor torque limit based on the provided percentage
+        // If your motor driver supports setting torque limits directly:
+        // _motor->TorqueLimit(_torqueLimit);
+
+        // For debugging:
+        ClearCore::ConnectorUsb.Send("[YAxis::SetTorqueLimit] Set to: ");
+        ClearCore::ConnectorUsb.SendLine(_torqueLimit);
     }
 }
 

@@ -124,31 +124,40 @@ void SettingsScreen::handleEvent(const genieFrame& e) {
         }
         break;
 
-    case WINBUTTON_BACK:
-        Serial.println("SettingsScreen: BACK pressed");
-        ui.unbindField();
+    case WINBUTTON_APPLY_OFFSET_PRESSURE: {
+        auto& settings = SettingsManager::Instance().settings();
+        auto& cutData = _mgr.GetCutData();
+
+        // Update settings cut pressure value to current cutData cutPressure
+        settings.cutPressure = cutData.cutPressure;
+
+        // Clear the override flag
+        cutData.cutPressureOverride = false;
+
+        // Turn off the LED 4 indicator (for both screens)
+        genie.WriteObject(GENIE_OBJ_LED, LED_CUT_PRESSURE_OFFSET_F2, 0);
+        genie.WriteObject(GENIE_OBJ_LED, LED_CUT_PRESSURE_OFFSET_F5, 0);
+
+        // Save the settings
         SettingsManager::Instance().save();
-        showButtonSafe(WINBUTTON_BACK, 0, 0);
 
-        int selector = PendantManager::Instance().LastKnownSelector();
-        Serial.print("Selector value: ");
-        Serial.println(selector, HEX);
+        // Visual feedback - flash the button
+        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_APPLY_OFFSET_PRESSURE, 1);
+        delay(100);
+        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_APPLY_OFFSET_PRESSURE, 0);
 
-        switch (selector) {
-        case 0x01:
-            // Reserved for future use
-            break;
-        case 0x02: ScreenManager::Instance().ShowJogY(); break;
-        case 0x04: ScreenManager::Instance().ShowJogZ(); break;
-        case 0x08: ScreenManager::Instance().ShowSemiAuto(); break;
-        case 0x10: ScreenManager::Instance().ShowAutoCut(); break;
-        default:   ScreenManager::Instance().ShowManualMode(); break;
-        }
-        break;
+        // Update the settings display to show the new value
+        genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE_SETTINGS,
+            static_cast<uint16_t>(settings.cutPressure * 100.0f));
+
+        Serial.print("Applied cut pressure offset: ");
+        Serial.println(settings.cutPressure);
+    } break;
     }
-}
+}// Add this implementation to SettingsScreen.cpp
 
 void SettingsScreen::onHide() {
-    Serial.println("SettingsScreen: onHide()");
-    showButtonSafe(WINBUTTON_BACK, 0, 0);
+    // Clean up any resources or state when the settings screen is hidden
+    UIInputManager::Instance().unbindField();
+    Serial.println("SettingsScreen: onHide() executed");
 }

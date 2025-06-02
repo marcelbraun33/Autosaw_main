@@ -1,3 +1,5 @@
+// Add SetTorqueLimit method declaration and _torqueLimit member variable
+
 #pragma once
 
 #include <ClearCore.h>
@@ -36,6 +38,10 @@ public:
     bool  IsHomed() const;
     bool  IsHoming() const;
 
+    // Torque control
+    void SetTorqueLimit(float torquePercent);  // Set torque limit (0-100%)
+    float GetTorqueLimit() const { return _torqueLimit; } // Get configured torque limit
+
     // Motion tuning
     float GetStepsPerInch() const { return _stepsPerInch; }
     void  UpdateVelocity(float velocityScale);
@@ -69,9 +75,10 @@ private:
     bool    _isHomed = false;
     bool    _hasBeenHomed = false;
     float   _currentPos = 0.0f;   // Commanded position [inches]
-    float   _actualPos = 0.0f;   // Feedback position [inches]
-    float   _targetPos = 0.0f;   // Target position [inches]
-    float   _torquePct = 0.0f;   // 0–100%
+    float   _actualPos = 0.0f;    // Feedback position [inches]
+    float   _targetPos = 0.0f;    // Target position [inches]
+    float   _torquePct = 0.0f;    // Current measured torque (0–100%)
+    float   _torqueLimit = 0.0f;  // Configured torque limit (0-100%)
     const float _stepsPerInch;
     MotorDriver* const _motor;      // Pointer to ClearCore motor driver
 

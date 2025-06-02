@@ -94,12 +94,22 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
         }
     } break;
 
-           // Cut pressure adjust button (unchanged)
+    // Cut pressure adjust button
     case 41: {
         auto& ui = UIInputManager::Instance();
+        auto& cutData = _mgr.GetCutData();
+        
         if (ui.isEditing()) {
             if (ui.isFieldActive(41)) {
                 ui.unbindField();
+                
+                // Check if the cut pressure has changed from settings value
+                if (std::abs(_cycle->getCutPressure() - SettingsManager::Instance().settings().cutPressure) > 0.001f) {
+                    // Set the override flag as the value differs from settings
+                    cutData.cutPressureOverride = true;
+                    cutData.cutPressure = _cycle->getCutPressure();
+                }
+                
                 genie.WriteObject(GENIE_OBJ_WINBUTTON, 41, 0);
             }
             else {
@@ -118,9 +128,13 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
             );
             genie.WriteObject(GENIE_OBJ_WINBUTTON, 41, 1);
         }
+        
+        // Update the LED to reflect override state
+        genie.WriteObject(GENIE_OBJ_LED, LED_CUT_PRESSURE_OFFSET_F2, 
+                         cutData.cutPressureOverride ? 1 : 0);
     } break;
 
-           // Homing button (unchanged)
+    // Homing button (unchanged)
     case 42: {
         auto& mc = MotionController::Instance();
         MotionController::MotionStatus status = mc.getStatus();
@@ -178,15 +192,17 @@ void SemiAutoScreen::update() {
 void SemiAutoScreen::updateDisplays() {
     if (!_cycle) return;
 
-    genie.WriteObject(GENIE_OBJ_LED, 2, _cycle->isFeedRateOffsetActive() ? 1 : 0);
-    genie.WriteObject(GENIE_OBJ_LED, 4, _cycle->isCutPressureOffsetActive() ? 1 : 0);
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, 27, static_cast<uint16_t>(_cycle->getCutPressure() * 100.0f));
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, 28, static_cast<uint16_t>(_cycle->currentThickness() * 1000.0f));
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, 29, static_cast<uint16_t>(_cycle->distanceToGo() * 1000.0f));
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, 6, static_cast<uint16_t>(_cycle->commandedRPM()));
+    auto& cutData = _mgr.GetCutData();
+    
+    genie.WriteObject(GENIE_OBJ_LED, LED_FEED_RATE_OFFSET_F2, _cycle->isFeedRateOffsetActive() ? 1 : 0);
+    genie.WriteObject(GENIE_OBJ_LED, LED_CUT_PRESSURE_OFFSET_F2, cutData.cutPressureOverride ? 1 : 0);
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE, static_cast<uint16_t>(_cycle->getCutPressure() * 100.0f));
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_THICKNESS_F2, static_cast<uint16_t>(_cycle->currentThickness() * 1000.0f));
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F2, static_cast<uint16_t>(_cycle->distanceToGo() * 1000.0f));
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_DISPLAY, static_cast<uint16_t>(_cycle->commandedRPM()));
 
     // Show feed rate (1 decimal place)
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, 7, static_cast<uint16_t>(_cycle->getFeedRate() * 10.0f));
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_FEED_OVERRIDE, static_cast<uint16_t>(_cycle->getFeedRate() * 10.0f));
 }
 
 void SemiAutoScreen::updateButtonStates() {
