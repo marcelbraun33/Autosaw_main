@@ -1,4 +1,4 @@
-// YAxis.h
+// YAxis.h updated with torque control support
 #pragma once
 
 #include <ClearCore.h>
@@ -34,6 +34,14 @@ public:
     void Home() { StartHoming(); }
     void ClearAlerts();
 
+    // Torque control methods
+    void SetTorqueTarget(float targetPercent);
+    float GetTorqueTarget() const;
+    bool StartTorqueControlledFeed(float targetPosition, float initialVelocityScale);
+    void UpdateFeedRate(float newVelocityScale);
+    bool IsInTorqueControlledFeed() const;
+    void AbortTorqueControlledFeed();
+
 private:
     // Internal state
     bool    _isSetup = false;
@@ -54,4 +62,22 @@ private:
     // Homing helper
     HomingHelper* _homingHelper;
     bool _hasBeenHomed = false;    // gets flipped true when homing succeeds
+
+    // Torque control parameters
+    bool _inTorqueControlFeed = false;
+    float _torqueTarget = 70.0f;    // Default target torque (%)
+    float _currentFeedRate = 1.0f;  // Current feed rate (0.0-1.0)
+    float _maxFeedRate = 1.0f;      // Maximum feed rate for torque control
+    float _minFeedRate = 0.1f;      // Minimum feed rate (10%)
+
+    // Torque reading and control methods
+    void UpdateTorqueMeasurement();
+    void AdjustFeedRateBasedOnTorque();
+
+    // PID-like control variables for smoother torque control
+    float _torqueErrorAccumulator = 0.0f;
+    uint32_t _lastTorqueUpdateTime = 0;
+    static constexpr float TORQUE_Kp = 0.01f;  // Proportional gain
+    static constexpr float TORQUE_Ki = 0.002f; // Integral gain 
+    static constexpr float TORQUE_Kd = 0.005f; // Derivative gain
 };

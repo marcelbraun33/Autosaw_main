@@ -188,7 +188,7 @@ bool MotionController::moveTo(AxisId axis, float pos, float scale) {
 }
 
 bool MotionController::jogBy(AxisId axis, float deltaInches, float scale) {
-    float cur = getAxisPosition(axis);
+    float cur = getAbsoluteAxisPosition(axis);  // Use absolute position
     return moveTo(axis, cur + deltaInches, scale);
 }
 
@@ -217,3 +217,40 @@ MotionController::MotionStatus MotionController::getStatus() const {
     s.zHomed = zAxis.IsHomed();
     return s;
 }
+// Add these methods to MotionController.cpp after existing code
+
+bool MotionController::startTorqueControlledFeed(AxisId axis, float targetPosition, float initialVelocityScale) {
+    if (axis == AXIS_Y) {
+        return yAxis.StartTorqueControlledFeed(targetPosition, initialVelocityScale);
+    }
+
+    ClearCore::ConnectorUsb.SendLine("[MotionController] Torque controlled feed only supported for Y-axis");
+    return false; // Only Y-axis supports torque control currently
+}
+
+void MotionController::setTorqueTarget(AxisId axis, float targetPercent) {
+    if (axis == AXIS_Y) {
+        yAxis.SetTorqueTarget(targetPercent);
+    }
+}
+
+float MotionController::getTorqueTarget(AxisId axis) const {
+    if (axis == AXIS_Y) {
+        return yAxis.GetTorqueTarget();
+    }
+    return 0.0f;
+}
+
+bool MotionController::isInTorqueControlledFeed(AxisId axis) const {
+    if (axis == AXIS_Y) {
+        return yAxis.IsInTorqueControlledFeed();
+    }
+    return false;
+}
+
+void MotionController::abortTorqueControlledFeed(AxisId axis) {
+    if (axis == AXIS_Y) {
+        yAxis.AbortTorqueControlledFeed();
+    }
+}
+

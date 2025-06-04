@@ -1,4 +1,4 @@
-// === MotionController.h ===
+// Updated MotionController.h with torque control methods
 #pragma once
 
 #include "Spindle.h"
@@ -57,6 +57,22 @@ public:
     /// Clear any encoder position errors
     void clearEncoderPositionErrors();
 
+    //--- Torque-Controlled Feed ---
+    /// Start a torque-controlled feed for Y-axis to maintain constant cutting force
+    bool startTorqueControlledFeed(AxisId axis, float targetPosition, float initialVelocityScale);
+
+    /// Set the torque target for the specified axis
+    void setTorqueTarget(AxisId axis, float targetPercent);
+
+    /// Get the current torque target for the specified axis
+    float getTorqueTarget(AxisId axis) const;
+
+    /// Check if the specified axis is in torque-controlled feed mode
+    bool isInTorqueControlledFeed(AxisId axis) const;
+
+    /// Abort a torque-controlled feed operation
+    void abortTorqueControlledFeed(AxisId axis);
+
     //--- Emergency ---
     void EmergencyStop();
 
@@ -81,3 +97,4 @@ private:
     YAxis yAxis;
     ZAxis zAxis;
 };
+
