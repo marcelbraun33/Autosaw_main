@@ -11,19 +11,16 @@ ManualModeScreen::ManualModeScreen(ScreenManager& mgr) : _mgr(mgr) {}
 extern Genie genie;
 
 void ManualModeScreen::onShow() {
-    // 1) Turn the pendant back on so the knob always works
+    // Setup pendant
     PendantManager::Instance().SetEnabled(true);
-
-    // 2) Reset its last-known state so it won't immediately retrigger
-    //    until the user actually moves the knob again.
     PendantManager::Instance().SetLastKnownSelector(
         PendantManager::Instance().ReadSelector()
     );
 
-    // 3) Clean up any leftover field edits
+    // Clean up fields
     UIInputManager::Instance().unbindField();
 
-    // 4) Sync the spindle toggle button visual state
+    // Just set spindle button state
     bool spindleActive = MotionController::Instance().IsSpindleRunning();
     genie.WriteObject(
         GENIE_OBJ_WINBUTTON,

@@ -1,34 +1,45 @@
 #include "SemiAutoScreen.h"
 #include "screenmanager.h" // Required for _mgr.GetCutData()
+#include "MotionController.h"
+#include "UIInputManager.h"
+#include <ClearCore.h>
+
+extern Genie genie;
 
 SemiAutoScreen::SemiAutoScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
 void SemiAutoScreen::onShow() {
-    // Example: auto& cutData = _mgr.GetCutData();
-    // Initialize semi-auto state here
+    // Just clean up fields
+    UIInputManager::Instance().unbindField();
+
+    // Only set spindle button state
+    auto& mc = MotionController::Instance();
+    bool spindleActive = mc.IsSpindleRunning();
+    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SPINDLE_ON, spindleActive ? 1 : 0);
 }
 
 void SemiAutoScreen::onHide() {
-    // Cleanup or disable semi-auto state here
+    // Stop any ongoing operations
+    UIInputManager::Instance().unbindField();
+
+    // Clear all visual indicators
+    genie.WriteObject(GENIE_OBJ_LED, LED_READY, 0);
 }
 
 void SemiAutoScreen::handleEvent(const genieFrame& e) {
-    // Handle semi-auto events here
+    // Minimal handling to prevent crashes
+    if (e.reportObject.cmd != GENIE_REPORT_EVENT) {
+        return;
+    }
 }
 
-void SemiAutoScreen::startFeedToStop() {
-    // Use auto& cutData = _mgr.GetCutData(); if you need shared job/cut data
-}
+void SemiAutoScreen::update() {
+    // Basic updates for display values
+    auto& mc = MotionController::Instance();
 
-void SemiAutoScreen::advanceIncrement() {
-    // Use auto& cutData = _mgr.GetCutData(); if you need shared job/cut data
-}
+    // Update RPM display
+    uint16_t rpm = mc.IsSpindleRunning() ? (uint16_t)mc.CommandedRPM() : 0;
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_DISPLAY, rpm);
 
-void SemiAutoScreen::feedHold() {
-    // Use auto& cutData = _mgr.GetCutData(); if you need shared job/cut data
+    // You can add additional updates for other displays as needed
 }
-
-void SemiAutoScreen::exitFeedHold() {
-    // Use auto& cutData = _mgr.GetCutData(); if you need shared job/cut data
-}
-

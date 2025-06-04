@@ -16,26 +16,15 @@ extern Genie genie;
 JogXScreen::JogXScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
 void JogXScreen::onShow() {
+    // Setup MPG mode
     MPGJogManager::Instance().setEnabled(true);
     MPGJogManager::Instance().setAxis(AXIS_X);
 
+    // Only set zero button state
     auto& cutData = _mgr.GetCutData();
-
-    for (int i = 0; i <= WINBUTTON_SET_TOTAL_SLICES; ++i) {
-        showButtonSafe(i, 0);
-    }
-
     showButtonSafe(WINBUTTON_CAPTURE_ZERO, cutData.useStockZero ? 1 : 0);
 
-    genie.WriteObject(GENIE_OBJ_LED, LED_NEGATIVE_INDICATOR, 0);
-    genie.WriteObject(GENIE_OBJ_USER_LED, LED_NEGATIVE_INDICATOR, 0);
-
-    updatePositionDisplay();
-    updateStockLengthDisplay();
-    updateIncrementDisplay();
-    updateThicknessDisplay();
-    updateTotalSlicesDisplay();
-    updateSliceCounterDisplay();
+    // Let update() handle the rest
 }
 
 void JogXScreen::onHide() {
@@ -43,9 +32,33 @@ void JogXScreen::onHide() {
     for (int i = 0; i <= WINBUTTON_SET_TOTAL_SLICES; ++i) {
         showButtonSafe(i, 0);
     }
+
+    // Only use GENIE_OBJ_LED, not USER_LED
     genie.WriteObject(GENIE_OBJ_LED, LED_NEGATIVE_INDICATOR, 0);
-    genie.WriteObject(GENIE_OBJ_USER_LED, LED_NEGATIVE_INDICATOR, 0);
+
     UIInputManager::Instance().unbindField();
+}
+
+void JogXScreen::updatePositionDisplay() {
+    auto& cutData = _mgr.GetCutData();
+    float current = MotionController::Instance().getAxisPosition(AXIS_X);
+    float display = cutData.useStockZero ? (current - cutData.positionZero) : current;
+    bool negative = (display < 0.0f);
+    static bool lastNeg = false;
+
+    // Only use GENIE_OBJ_LED, not USER_LED
+    genie.WriteObject(GENIE_OBJ_LED, LED_NEGATIVE_INDICATOR, negative ? 1 : 0);
+
+    if (negative != lastNeg) {
+        lastNeg = negative;
+        ClearCore::ConnectorUsb.Send("Position: ");
+        ClearCore::ConnectorUsb.Send(display);
+        ClearCore::ConnectorUsb.Send(" isNegative: ");
+        ClearCore::ConnectorUsb.SendLine(negative ? "YES" : "NO");
+    }
+    int32_t scaled = static_cast<int32_t>(round(fabs(display) * 1000.0f));
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SAW_POSITION,
+        static_cast<uint16_t>(scaled));
 }
 
 void JogXScreen::handleEvent(const genieFrame& e) {
@@ -186,25 +199,6 @@ void JogXScreen::handleEvent(const genieFrame& e) {
     }
 }
 
-void JogXScreen::updatePositionDisplay() {
-    auto& cutData = _mgr.GetCutData();
-    float current = MotionController::Instance().getAxisPosition(AXIS_X);
-    float display = cutData.useStockZero ? (current - cutData.positionZero) : current;
-    bool negative = (display < 0.0f);
-    static bool lastNeg = false;
-    genie.WriteObject(GENIE_OBJ_LED, LED_NEGATIVE_INDICATOR, negative ? 1 : 0);
-    genie.WriteObject(GENIE_OBJ_USER_LED, LED_NEGATIVE_INDICATOR, negative ? 1 : 0);
-    if (negative != lastNeg) {
-        lastNeg = negative;
-        ClearCore::ConnectorUsb.Send("Position: ");
-        ClearCore::ConnectorUsb.Send(display);
-        ClearCore::ConnectorUsb.Send(" isNegative: ");
-        ClearCore::ConnectorUsb.SendLine(negative ? "YES" : "NO");
-    }
-    int32_t scaled = static_cast<int32_t>(round(fabs(display) * 1000.0f));
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SAW_POSITION,
-        static_cast<uint16_t>(scaled));
-}
 
 void JogXScreen::captureZero() {
     auto& cutData = _mgr.GetCutData();

@@ -33,6 +33,8 @@ public:
     void ShowSemiAuto();
     void ShowAutoCut();
     void Back();
+   
+    void clearAllLeds();
 
     uint8_t currentForm() const { return _currentForm; }
     Screen* currentScreen();

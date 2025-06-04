@@ -1,5 +1,4 @@
-﻿
-// === ScreenManager.cpp ===
+﻿// === ScreenManager.cpp ===
 #include "ScreenManager.h"
 #include "Config.h"
 #include <ClearCore.h>
@@ -37,34 +36,48 @@ void ScreenManager::Init() {
 }
 
 void ScreenManager::writeForm(uint8_t formId) {
-    // *** DEBUG LOGGING ***
+    // Don't redraw if already on this form
+    if (_currentForm == formId) return;
+    
+    // Debug info
     ClearCore::ConnectorUsb.Send("[SM] writeForm: from ");
     ClearCore::ConnectorUsb.Send(_currentForm);
     ClearCore::ConnectorUsb.Send(" → ");
     ClearCore::ConnectorUsb.SendLine(formId);
-
-    // Disable jog mode when leaving a jog screen
+    
+    // Clean exit current screen
+    if (_currentScreen) _currentScreen->onHide();
+    
+    // Disable jog mode when leaving jog screens
     if (_currentForm == FORM_JOG_X || _currentForm == FORM_JOG_Y || _currentForm == FORM_JOG_Z) {
         MPGJogManager::Instance().setEnabled(false);
     }
-
-    if (_currentForm == formId) return;
-    if (_currentScreen) _currentScreen->onHide();
+    
+    // Track form state
     _lastForm = _currentForm;
     _currentForm = formId;
+    
+    // Change form and let the display handle its own transition
     genie.WriteObject(GENIE_OBJ_FORM, formId, 0);
+    delay(100); // Give display time to fully load form before changes
+    
+    // Initialize the new screen
     _currentScreen = currentScreen();
     if (_currentScreen) _currentScreen->onShow();
-
-    // Reset jog WinButton when entering a jog screen
-    if (_currentForm == FORM_JOG_X) {
-        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_ACTIVATE_JOG, 0);
-    }
-    else if (_currentForm == FORM_JOG_Y) {
-        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_ACTIVATE_JOG_Y_F6, 0);
-    }
-
 }
+
+void ScreenManager::clearAllLeds() {
+    // Only clear a few specific LEDs that might cause rogue digits
+    genie.WriteObject(GENIE_OBJ_LED, LED_NEGATIVE_INDICATOR, 0); // For JogXScreen
+    genie.WriteObject(GENIE_OBJ_LED, LED_AT_START_POSITION_Y, 0); // For JogYScreen
+    genie.WriteObject(GENIE_OBJ_LED, LED_READY, 0); // For SemiAutoScreen
+    genie.WriteObject(GENIE_OBJ_LED, LED_FEED_RATE_OFFSET_F2, 0);
+    genie.WriteObject(GENIE_OBJ_LED, LED_CUT_PRESSURE_OFFSET_F2, 0);
+
+    // REMOVE the form-by-form LED_DIGITS clearing - this is causing the flickering
+    // and button ghosting issues due to display refresh conflicts
+}
+
 
 
 void ScreenManager::ShowSplash() { writeForm(FORM_SPLASH); }

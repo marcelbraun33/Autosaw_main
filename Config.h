@@ -7,8 +7,6 @@
 #define GENIE_BAUD          115200
 #define GENIE_SERIAL_PORT Serial0  // Optional, or just use Serial1 directly
 
-
-
 // === Motor Connections ===
 #define MOTOR_SPINDLE       ConnectorM0   // Velocity mode (MCVC)
 #define MOTOR_FENCE_X       ConnectorM3   // Step/Dir
@@ -23,7 +21,6 @@
 #define SELECTOR_PIN_AUTOCUT  ConnectorIO5   // AutoCut Active
 #define GENIE_RESET_PIN 6
 
-
 // === Pendant Range Selector (X1/X10/X100) ===
 #define RANGE_PIN_X10         ConnectorA11   // X10 range switch
 #define RANGE_PIN_X100        ConnectorA10   // X100 range switch
@@ -32,7 +29,6 @@
 // === E-Stop and Relay Control ===
 #define ESTOP_INPUT_PIN       ConnectorA12   // E-stop (active LOW)
 #define SAFETY_RELAY_OUTPUT   ConnectorIO0   // Relay control
-
 
 // === Encoder Jog Wheel ===
 #define JOG_ENCODER_INPUT     EncoderIn
@@ -59,154 +55,146 @@
 #define JOG_MULTIPLIER_X100       100
 
 // === Form IDs ===
-#define FORM_SPLASH         4
-#define FORM_MANUAL_MODE    7
-#define FORM_HOMING         0
-#define FORM_JOG_X          1
-#define FORM_JOG_Y          6
-#define FORM_JOG_Z          8
-#define FORM_SEMI_AUTO      2
-#define FORM_AUTOCUT        5
-#define FORM_SETTINGS       3
+#define FORM_HOMING         0   // Form0
+#define FORM_JOG_X          1   // Form1 (Jog Fence)
+#define FORM_SEMI_AUTO      2   // Form2
+#define FORM_SETTINGS       3   // Form3
+#define FORM_SPLASH         4   // Form4
+#define FORM_AUTOCUT        5   // Form5
+#define FORM_JOG_Y          6   // Form6 (Jog Table)
+#define FORM_MANUAL_MODE    7   // Form7
+#define FORM_JOG_Z          8   // Form8 (Rotary)
 
 // ─── Genie Object Definitions ────────────────────────────────────────────────────
 
 // — LED Digits —
-#define LEDDIGITS_SAW_POSITION             0   // Form1
-#define LEDDIGITS_STOCK_LENGTH             1   // Form1
-#define LEDDIGITS_CUT_THICKNESS            2   // Form1
-#define LEDDIGITS_INCREMENT                3   // Form1
-#define LEDDIGITS_TOTAL_SLICES             4   // Form1
-#define LEDDIGITS_SLICE_COUNTER            5   // Form1
-#define LED_NEGATIVE_INDICATOR             0   // Form1
+// Form1 (Jog Fence X)
+#define LEDDIGITS_SAW_POSITION             0   // Form1 - Leddigits0
+#define LEDDIGITS_STOCK_LENGTH             1   // Form1 - Leddigits1
+#define LEDDIGITS_CUT_THICKNESS            2   // Form1 - Leddigits2
+#define LEDDIGITS_INCREMENT                3   // Form1 - Leddigits3
+#define LEDDIGITS_TOTAL_SLICES             4   // Form1 - Leddigits4
+#define LEDDIGITS_SLICE_COUNTER            5   // Form1 - Leddigits5
+#define LED_NEGATIVE_INDICATOR             0   // Form1 - Led0
 
-#define LEDDIGITS_RPM_DISPLAY              6   // Form2
-#define LEDDIGITS_FEED_OVERRIDE            7   // Form2
-#define LEDDIGITS_CUT_PRESSURE             27  // Form2 - New from object sheet
-#define LEDDIGITS_THICKNESS_F2             28  // Form2 - New from object sheet
-#define LEDDIGITS_DISTANCE_TO_GO_F2        29  // Form2 - New from object sheet
-#define LEDDIGITS_CUTTING_POSITION_F2      32  // Form2 - New from object sheet
-#define LEDDIGITS_CUTTING_TOTAL_F2         33  // Form2 - New from object sheet
-
-#define LEDDIGITS_DIAMETER_SETTINGS        8   // Form3
-#define LEDDIGITS_THICKNESS_SETTINGS       9   // Form3
-#define LEDDIGITS_RPM_SETTINGS            10   // Form3
-#define LEDDIGITS_FEEDRATE_SETTINGS       11   // Form3
-#define LEDDIGITS_RAPID_SETTINGS          12   // Form3
-#define LEDDIGITS_CUT_PRESSURE_SETTINGS   26   // Form3 - New from object sheet
-
-#define LEDDIGITS_FEED_OVERRIDE_F5        13   // Form5
-#define LEDDIGITS_RPM_F5                  14   // Form5
-#define LEDDIGITS_STOCK_LENGTH_F5         15   // Form5
-#define LEDDIGITS_THICKNESS_F5            16   // Form5
-#define LEDDIGITS_CUTTING_POSITION_F5     17   // Form5 - Updated name to match sheet
-#define LEDDIGITS_DISTANCE_TO_GO_F5       18   // Form5 - Updated name to match sheet
-#define LEDDIGITS_CUT_PRESSURE_F5         30   // Form5 - New from object sheet
-#define LEDDIGITS_TOTAL_SLICES_F5         31   // Form5 - New from object sheet
-
-#define LEDDIGITS_STOCK_END_Y             19   // Form6
-#define LEDDIGITS_TABLE_POSITION_Y        20   // Form6
-#define LEDDIGITS_CUT_LENGTH_Y            21   // Form6
-#define LEDDIGITS_CUT_STOP_Y              22   // Form6
-#define LEDDIGITS_RETRACT_DISTANCE        25   // Form6 - New from object sheet
-
-// Define LED IDs for indicators
-#ifndef LED_AT_START_POSITION_Y
-#define LED_AT_START_POSITION_Y 1  // Form6 - LED indicator for table at start position
-#endif
-
-#ifndef LED_FEED_RATE_OFFSET_F2
-#define LED_FEED_RATE_OFFSET_F2 2  // Form2 - Feed rate offset indicator
-#endif
-
-#ifndef LED_CUT_PRESSURE_OFFSET_F2
-#define LED_CUT_PRESSURE_OFFSET_F2 4  // Form2 - Cut pressure offset indicator
-#endif
-
-#ifndef LED_FEED_RATE_OFFSET_F5
-#define LED_FEED_RATE_OFFSET_F5 3  // Form5 - Feed rate offset indicator
-#endif
-
-#ifndef LED_CUT_PRESSURE_OFFSET_F5
-#define LED_CUT_PRESSURE_OFFSET_F5 5  // Form5 - Cut pressure offset indicator
-#endif
-
-#define LEDDIGITS_MANUAL_RPM              23   // Form7
-#define LEDDIGITS_MANUAL_UNUSED           24   // Form7 (if any)
-
-// — Gauges —
-#define IGAUGE_SEMIAUTO_LOAD_METER        0   // Form2
-#define IGAUGE_SEMIAUTO_CUT_PRESSURE      1   // Form2 - Updated name to match sheet
-#define IGAUGE_AUTOCUT_FEED_PRESSURE      2   // Form5
-#define IGAUGE_AUTOCUT_LOAD_METER         3   // Form5
-#define IGAUGE_MANUAL_LOAD_METER          4   // Form7
-
-// — Slider —
-#define ISLIDER_CONTRAST                   0   // Form3
-
-// — WinButtons —
-// Form1 (Jog Fence)
-#define WINBUTTON_CAPTURE_ZERO             0
-#define WINBUTTON_CAPTURE_STOCK_LENGTH     1
-#define WINBUTTON_ACTIVATE_JOG             2
-#define WINBUTTON_CAPTURE_INCREMENT        3
-#define WINBUTTON_INC_PLUS                 4
-#define WINBUTTON_GO_TO_ZERO              47   // Form1 - New from object sheet
-#define WINBUTTON_INC_MINUS                5
-#define WINBUTTON_DIVIDE_SET               6
-#define WINBUTTON_SET_STOCK_LENGTH         7
-#define WINBUTTON_SET_CUT_THICKNESS        8
-#define WINBUTTON_SET_TOTAL_SLICES         9
-
-// Form2 (Semi-Auto)
-#define WINBUTTON_SPINDLE_ON               10
-#define WINBUTTON_FEED_TO_STOP             11
-#define WINBUTTON_FEED_HOLD                12
-#define WINBUTTON_EXIT_FEED_HOLD           13
-#define WINBUTTON_INC_PLUS_F2              14  // Updated based on object sheet
-#define WINBUTTON_ADJUST_FEED              15
-#define WINBUTTON_SETTINGS_SEMI            16
-#define WINBUTTON_ADJUST_CUT_PRESSURE      41  // Form2 - New from object sheet
-#define WINBUTTON_TABLE_TO_POSITION        42  // Form2 - New from object sheet
-#define WINBUTTON_INC_MINUS_F2             50  // Form2 - New from object sheet
+// Form2 (Semi Auto)
+#define LEDDIGITS_RPM_DISPLAY              6   // Form2 - Leddigits6
+#define LEDDIGITS_FEED_OVERRIDE            7   // Form2 - Leddigits7
+#define LEDDIGITS_CUT_PRESSURE             27  // Form2 - Leddigits27
+#define LEDDIGITS_THICKNESS_F2             28  // Form2 - Leddigits28
+#define LEDDIGITS_DISTANCE_TO_GO_F2        29  // Form2 - Leddigits29
+#define LED_READY                          6   // Form2 - Led6
 
 // Form3 (Settings)
-#define WINBUTTON_SET_RPM_SETTINGS         17
-#define WINBUTTON_SET_FEEDRATE_SETTINGS    18
-#define WINBUTTON_SET_RAPID_SETTINGS       19
-#define WINBUTTON_SET_DIAMETER_SETTINGS    20
-#define WINBUTTON_SET_THICKNESS_SETTINGS   21
-#define WINBUTTON_BACK                     38
-#define WINBUTTON_SET_CUT_PRESSURE_F3      40  // Form3 - New from object sheet
-#define WINBUTTON_APPLY_OFFSET_PRESSURE    45  // Form3 - New from object sheet
-#define WINBUTTON_APPLY_OFFSET_FEEDRATE    46  // Form3 - New from object sheet
+#define LEDDIGITS_DIAMETER_SETTINGS        8   // Form3 - Leddigits8
+#define LEDDIGITS_THICKNESS_SETTINGS       9   // Form3 - Leddigits9
+#define LEDDIGITS_RPM_SETTINGS            10   // Form3 - Leddigits10
+#define LEDDIGITS_FEEDRATE_SETTINGS       11   // Form3 - Leddigits11
+#define LEDDIGITS_RAPID_SETTINGS          12   // Form3 - Leddigits12
+#define LEDDIGITS_CUT_PRESSURE_SETTINGS   26   // Form3 - Leddigits26
 
 // Form5 (Autocut Active)
-#define WINBUTTON_END_CYCLE_F5             22
-#define WINBUTTON_SLIDE_HOLD_F5            23
-#define WINBUTTON_ADJUST_FEEDRATE_F5       24
-#define WINBUTTON_START_AUTOFEED_F5        25
-#define WINBUTTON_SETTINGS_F5              26
-#define WINBUTTON_ADJUST_CUT_PRESSURE_F5   43  // Form5 - New from object sheet
-#define WINBUTTON_MOVE_TO_START_POSITION   44  // Form5 - New from object sheet
+#define LEDDIGITS_FEED_OVERRIDE_F5        13   // Form5 - Leddigits13
+#define LEDDIGITS_RPM_F5                  14   // Form5 - Leddigits14
+#define LEDDIGITS_STOCK_LENGTH_F5         15   // Form5 - Leddigits15
+#define LEDDIGITS_THICKNESS_F5            16   // Form5 - Leddigits16
+#define LEDDIGITS_CUTTING_POSITION_F5     17   // Form5 - Leddigits17
+#define LEDDIGITS_DISTANCE_TO_GO_F5       18   // Form5 - Leddigits18
+#define LEDDIGITS_CUT_PRESSURE_F5         30   // Form5 - Leddigits30
+#define LEDDIGITS_TOTAL_SLICES_F5         31   // Form5 - Leddigits31
 
-// Form6 (Jog Table)
-#define WINBUTTON_CAPTURE_CUT_END_F6       27
-#define WINBUTTON_ACTIVATE_JOG_Y_F6        28
-#define WINBUTTON_SET_WITH_MPG_F6          29
-#define WINBUTTON_CAPTURE_CUT_START_F6     30
-#define WINBUTTON_JOG_TO_START             34  // Form6 - Updated based on object sheet
-#define WINBUTTON_SET_RETRACT_WITH_MPG_F6  39
-#define WINBUTTON_JOG_TO_END               48  // Form6 - New from object sheet
-#define WINBUTTON_JOG_TO_RETRACT           49  // Form6 - New from object sheet
+// Form6 (Jog Table Y)
+#define LEDDIGITS_STOCK_END_Y             19   // Form6 - Leddigits19
+#define LEDDIGITS_TABLE_POSITION_Y        20   // Form6 - Leddigits20
+#define LEDDIGITS_CUT_LENGTH_Y            21   // Form6 - Leddigits21
+#define LEDDIGITS_CUT_STOP_Y              22   // Form6 - Leddigits22
+#define LEDDIGITS_RETRACT_DISTANCE        25   // Form6 - Leddigits25
+#define LED_AT_START_POSITION_Y           1    // Form6 - Led1
 
 // Form7 (Manual Mode)
-#define WINBUTTON_SPINDLE_TOGGLE_F7        31
-#define WINBUTTON_ACTIVATE_PENDANT         32
-#define WINBUTTON_ACTIVATE_HOMING          33
-#define WINBUTTON_SET_RPM_F7               34
-#define WINBUTTON_SETTINGS_F7              35
+#define LEDDIGITS_MANUAL_RPM              23   // Form7 - Leddigits23
 
-// Form8 (Rotary)
-#define WINBUTTON_SET_RPM_F8               36
-#define WINBUTTON_ENABLE_F8                37
+// Form8 (Rotary Z)
+#define LEDDIGITS_ROTARY_RPM              24   // Form8 - Leddigits24
+
+// LED Indicators
+#define LED_FEED_RATE_OFFSET_F2           2   // Form2
+#define LED_FEED_RATE_OFFSET_F5           3   // Form5
+#define LED_CUT_PRESSURE_OFFSET_F2        4   // Form2
+#define LED_CUT_PRESSURE_OFFSET_F5        5   // Form5
+
+// — Gauges —
+#define IGAUGE_SEMIAUTO_LOAD_METER        0   // Form2 - IGauge0
+#define IGAUGE_SEMIAUTO_CUT_PRESSURE      1   // Form2 - IGauge1
+#define IGAUGE_AUTOCUT_FEED_PRESSURE      2   // Form5 - IGauge2
+#define IGAUGE_AUTOCUT_LOAD_METER         3   // Form5 - IGauge3
+#define IGAUGE_MANUAL_LOAD_METER          4   // Form7 - IGauge4
+
+// — Slider —
+#define ISLIDER_CONTRAST                  0   // Form3 - ISliderD0
+
+// — WinButtons —
+// Form1 (Jog Fence X)
+#define WINBUTTON_CAPTURE_ZERO             0   // Form1 - Winbutton0
+#define WINBUTTON_CAPTURE_STOCK_LENGTH     1   // Form1 - Winbutton1
+#define WINBUTTON_ACTIVATE_JOG             2   // Form1 - Winbutton2
+#define WINBUTTON_CAPTURE_INCREMENT        3   // Form1 - Winbutton3
+#define WINBUTTON_INC_PLUS                 4   // Form1 - Winbutton4
+#define WINBUTTON_INC_MINUS                5   // Form1 - Winbutton5
+#define WINBUTTON_DIVIDE_SET               6   // Form1 - Winbutton6
+#define WINBUTTON_SET_STOCK_LENGTH         7   // Form1 - Winbutton7
+#define WINBUTTON_SET_CUT_THICKNESS        8   // Form1 - Winbutton8
+#define WINBUTTON_SET_TOTAL_SLICES         9   // Form1 - Winbutton9
+#define WINBUTTON_GO_TO_ZERO              47   // Form1 - Winbutton47
+#define WINBUTTON_SET_STOCK_SLICES_X_INC  51   // Form1 - Winbutton51 (New in your HMI)
+
+// Form2 (Semi-Auto)
+#define WINBUTTON_SPINDLE_ON              10   // Form2 - Winbutton10
+#define WINBUTTON_FEED_TO_STOP            11   // Form2 - Winbutton11
+#define WINBUTTON_FEED_HOLD               12   // Form2 - Winbutton12
+#define WINBUTTON_EXIT_FEED_HOLD          13   // Form2 - Winbutton13
+#define WINBUTTON_INC_PLUS_F2             14   // Form2 - Winbutton14
+#define WINBUTTON_STOCK_ZERO              15   // Form2 - Winbutton15 (renamed from ADJUST_FEED)
+#define WINBUTTON_SETTINGS_SEMI           16   // Form2 - Winbutton16
+#define WINBUTTON_ADJUST_CUT_PRESSURE     41   // Form2 - Winbutton41
+#define WINBUTTON_HOME_F2                 42   // Form2 - Winbutton42 (renamed from TABLE_TO_POSITION)
+#define WINBUTTON_INC_MINUS_F2            50   // Form2 - Winbutton50
+
+// Form3 (Settings)
+#define WINBUTTON_SET_RPM_SETTINGS        17   // Form3 - Winbutton17
+#define WINBUTTON_SET_FEEDRATE_SETTINGS   18   // Form3 - Winbutton18
+#define WINBUTTON_SET_RAPID_SETTINGS      19   // Form3 - Winbutton19
+#define WINBUTTON_SET_DIAMETER_SETTINGS   20   // Form3 - Winbutton20
+#define WINBUTTON_SET_THICKNESS_SETTINGS  21   // Form3 - Winbutton21
+#define WINBUTTON_BACK                    38   // Form3 - Winbutton38
+#define WINBUTTON_SET_CUT_PRESSURE_F3     40   // Form3 - Winbutton40
+
+// Form5 (Autocut Active)
+#define WINBUTTON_END_CYCLE_F5            22   // Form5 - Winbutton22
+#define WINBUTTON_SLIDE_HOLD_F5           23   // Form5 - Winbutton23
+#define WINBUTTON_SPINDLE_F5              24   // Form5 - Winbutton24 (renamed from ADJUST_FEEDRATE_F5)
+#define WINBUTTON_START_AUTOFEED_F5       25   // Form5 - Winbutton25
+#define WINBUTTON_SETTINGS_F5             26   // Form5 - Winbutton26
+#define WINBUTTON_ADJUST_CUT_PRESSURE_F5  43   // Form5 - Winbutton43
+#define WINBUTTON_MOVE_TO_START_POSITION  44   // Form5 - Winbutton44
+
+// Form6 (Jog Table Y)
+#define WINBUTTON_CAPTURE_CUT_END_F6      27   // Form6 - Winbutton27
+#define WINBUTTON_ACTIVATE_JOG_Y_F6       28   // Form6 - Winbutton28
+#define WINBUTTON_SET_WITH_MPG_F6         29   // Form6 - Winbutton29
+#define WINBUTTON_CAPTURE_CUT_START_F6    30   // Form6 - Winbutton30
+#define WINBUTTON_JOG_TO_START            34   // Form6 - Winbutton34
+#define WINBUTTON_SET_RETRACT_WITH_MPG_F6 39   // Form6 - Winbutton39
+#define WINBUTTON_JOG_TO_END              48   // Form6 - Winbutton48
+#define WINBUTTON_JOG_TO_RETRACT          49   // Form6 - Winbutton49
+
+// Form7 (Manual Mode)
+#define WINBUTTON_SPINDLE_TOGGLE_F7       31   // Form7 - Winbutton31
+#define WINBUTTON_ACTIVATE_PENDANT        32   // Form7 - Winbutton32
+#define WINBUTTON_ACTIVATE_HOMING         33   // Form7 - Winbutton33
+// WINBUTTON_SET_RPM_F7 (34) has been removed in the new HMI
+#define WINBUTTON_SETTINGS_F7             35   // Form7 - Winbutton35
+
+// Form8 (Rotary Z)
+#define WINBUTTON_SET_RPM_F8              36   // Form8 - Winbutton36
+#define WINBUTTON_ENABLE_F8               37   // Form8 - Winbutton37

@@ -28,30 +28,21 @@ float JogYScreen::_tempRetract = 0.0f;
 JogYScreen::JogYScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
 void JogYScreen::onShow() {
-    auto& cutData = _mgr.GetCutData();
-    updateAllDisplays();
-
-    float pos = MotionController::Instance().getAxisPosition(AXIS_Y);
-    float distanceToStart = fabs(pos - cutData.cutStartPoint);
-    if (distanceToStart <= 0.002f) {
-        genie.WriteObject(GENIE_OBJ_LED, LED_AT_START_POSITION_Y, 1);
-    }
-    else {
-        genie.WriteObject(GENIE_OBJ_LED, LED_AT_START_POSITION_Y, 0);
-    }
-
+    // Reset modes
     _mpgSetLengthMode = false;
     _mpgSetRetractMode = false;
 
-    showButtonSafe(WINBUTTON_SET_WITH_MPG_F6, 0);
-    showButtonSafe(WINBUTTON_SET_RETRACT_WITH_MPG_F6, 0);
+    // MPG disabled at start
+    MPGJogManager::Instance().setEnabled(false);
 
-    auto& mpg = MPGJogManager::Instance();
-    mpg.setEnabled(false);
-    showButtonSafe(WINBUTTON_ACTIVATE_JOG_Y_F6, 0);
+    // Let update() handle the rest
 }
 
 void JogYScreen::onHide() {
+    // Clear LED indicators before leaving screen
+    genie.WriteObject(GENIE_OBJ_LED, LED_AT_START_POSITION_Y, 0);
+
+
     auto& ui = UIInputManager::Instance();
     if (_mpgSetLengthMode || _mpgSetRetractMode) {
         ui.unbindField();
