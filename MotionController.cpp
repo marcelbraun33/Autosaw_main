@@ -7,6 +7,7 @@
 #include "XAxis.h"
 #include "YAxis.h"
 #include "ZAxis.h"
+#include "EncoderPositionTracker.h"
 
 MotionController& MotionController::Instance() {
     static MotionController instance;
@@ -14,8 +15,6 @@ MotionController& MotionController::Instance() {
 }
 
 MotionController::MotionController() = default;
-
-
 
 void MotionController::setup() {
     // Clock rate and mode setup for all motors
@@ -28,8 +27,12 @@ void MotionController::setup() {
     xAxis.Setup();
     yAxis.Setup();
     zAxis.Setup();
+
+    // Initialize encoder position tracker
+    EncoderPositionTracker::Instance().setup(ENCODER_X_STEPS_PER_INCH, ENCODER_Y_STEPS_PER_INCH);
+    ClearCore::ConnectorUsb.SendLine("[MotionController] Absolute position tracking initialized");
 }
-// Add this to MotionController.cpp
+
 void MotionController::ClearAxisAlerts() {
     ClearCore::ConnectorUsb.SendLine("[MotionController] Clearing all axis alerts");
 
@@ -38,19 +41,26 @@ void MotionController::ClearAxisAlerts() {
     yAxis.ClearAlerts();
     zAxis.ClearAlerts();
 }
+
 void MotionController::update() {
     xAxis.Update();
     yAxis.Update();
     zAxis.Update();
+
+    // Update encoder position tracking
+    EncoderPositionTracker::Instance().update();
 }
 
 bool MotionController::StartHomingAxis(AxisId a) {
+    bool result = false;
+
     switch (a) {
-    case AXIS_X: return xAxis.StartHoming();
-    case AXIS_Y: return yAxis.StartHoming();
-    case AXIS_Z: return zAxis.StartHoming();
+    case AXIS_X: result = xAxis.StartHoming(); break;
+    case AXIS_Y: result = yAxis.StartHoming(); break;
+    case AXIS_Z: result = zAxis.StartHoming(); break;
     }
-    return false;
+
+    return result;
 }
 
 bool MotionController::StartHomingAll() {
@@ -110,6 +120,46 @@ float MotionController::getAxisPosition(AxisId axis) const {
     return 0.0f;
 }
 
+// New method for getting absolute encoder-verified position
+float MotionController::getAbsoluteAxisPosition(AxisId axis) const {
+    switch (axis) {
+    case AXIS_X:
+        return EncoderPositionTracker::Instance().getAbsolutePositionX();
+    case AXIS_Y:
+        return EncoderPositionTracker::Instance().getAbsolutePositionY();
+    case AXIS_Z:
+        // Z doesn't have encoder tracking yet, fall back to motor position
+        return zAxis.GetPosition();
+    default:
+        return 0.0f;
+    }
+}
+
+// New method to verify position against encoder feedback
+bool MotionController::verifyAxisPosition(AxisId axis, float expectedInches, float toleranceInches) {
+    switch (axis) {
+    case AXIS_X:
+        return EncoderPositionTracker::Instance().verifyPositionX(expectedInches, toleranceInches);
+    case AXIS_Y:
+        return EncoderPositionTracker::Instance().verifyPositionY(expectedInches, toleranceInches);
+    case AXIS_Z:
+        // Z doesn't have encoder tracking yet
+        return true;
+    default:
+        return false;
+    }
+}
+
+// New method to check if encoder has detected position errors
+bool MotionController::hasEncoderPositionError() const {
+    return EncoderPositionTracker::Instance().hasPositionError();
+}
+
+// New method to clear encoder position errors
+void MotionController::clearEncoderPositionErrors() {
+    EncoderPositionTracker::Instance().clearPositionError();
+}
+
 bool MotionController::isAxisMoving(AxisId axis) const {
     switch (axis) {
     case AXIS_X: return xAxis.IsMoving();
@@ -128,15 +178,11 @@ float MotionController::getTorquePercent(AxisId axis) const {
     return 0.0f;
 }
 
-
-// assume you have members: XAxis xAxis; YAxis yAxis; etc.
-
 bool MotionController::moveTo(AxisId axis, float pos, float scale) {
     switch (axis) {
     case AXIS_X: return xAxis.MoveTo(pos, scale);
     case AXIS_Y: return yAxis.MoveTo(pos, scale);
     case AXIS_Z: return zAxis.MoveTo(pos, scale);
-        // …other axes…
     }
     return false;
 }
@@ -157,9 +203,12 @@ MotionController::MotionStatus MotionController::getStatus() const {
     MotionStatus s;
     s.spindleRunning = spindle.IsRunning();
     s.spindleRPM = spindle.CommandedRPM();
-    s.xPosition = xAxis.GetPosition();
-    s.yPosition = yAxis.GetPosition();
-    s.zPosition = zAxis.GetPosition();
+
+    // Use absolute encoder positions for status reporting
+    s.xPosition = getAbsoluteAxisPosition(AXIS_X);
+    s.yPosition = getAbsoluteAxisPosition(AXIS_Y);
+    s.zPosition = zAxis.GetPosition();  // Z axis still uses direct position
+
     s.xMoving = xAxis.IsMoving();
     s.yMoving = yAxis.IsMoving();
     s.zMoving = zAxis.IsMoving();

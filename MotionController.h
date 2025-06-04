@@ -5,6 +5,7 @@
 #include "XAxis.h"
 #include "YAxis.h"
 #include "ZAxis.h"
+#include "Config.h"
 
 /// Identifiers for each axis
 enum AxisId {
@@ -18,7 +19,7 @@ class MotionController {
 public:
     /// Singleton access
     static MotionController& Instance();
-    void ClearAxisAlerts(); 
+    void ClearAxisAlerts();
 
     /// Initialize spindle and axes (non-blocking)
     void setup();
@@ -43,6 +44,18 @@ public:
     /// Jog the given axis by a relative offset (inches), at the given speed scale (0..1)
     bool jogBy(AxisId axis, float deltaInches, float velocityScale);
 
+    //--- Absolute Position Tracking ---
+    /// Get absolute encoder-verified position for an axis
+    float getAbsoluteAxisPosition(AxisId axis) const;
+
+    /// Verify that commanded position matches actual encoder position
+    bool verifyAxisPosition(AxisId axis, float expectedInches, float toleranceInches = ENCODER_POSITION_TOLERANCE);
+
+    /// Check if encoder position tracking has detected an error
+    bool hasEncoderPositionError() const;
+
+    /// Clear any encoder position errors
+    void clearEncoderPositionErrors();
 
     //--- Emergency ---
     void EmergencyStop();

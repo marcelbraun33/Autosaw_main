@@ -2,6 +2,7 @@
 #include "XAxis.h"
 #include "Config.h"
 #include "ClearCore.h"
+#include "EncoderPositionTracker.h"
 
 static constexpr float MAX_VELOCITY = 10000.0f;   // steps/s
 static constexpr float MAX_ACCELERATION = 100000.0f;  // steps/s^2
@@ -99,7 +100,11 @@ void XAxis::Update() {
     else if (!_isHomed && !_homingHelper->hasFailed()) {
         _isHomed = true;
         _hasBeenHomed = true;
-        ClearCore::ConnectorUsb.SendLine("[X-Axis] Homing complete");
+
+        // Reset encoder position tracking when X-axis homing completes
+        EncoderPositionTracker::Instance().resetPositionAfterHoming();
+
+        ClearCore::ConnectorUsb.SendLine("[X-Axis] Homing complete, encoder position reset");
     }
 }
 

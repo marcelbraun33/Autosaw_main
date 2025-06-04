@@ -83,6 +83,7 @@
     <ClCompile Include="AutoCutScreen.cpp" />
     <ClCompile Include="AutosawController.cpp" />
     <ClCompile Include="CutSequenceController.cpp" />
+    <ClCompile Include="EncoderPositionTracker.cpp" />
     <ClCompile Include="EStopManager.cpp" />
     <ClCompile Include="FileManager.cpp" />
     <ClCompile Include="HomingHelper.cpp" />
@@ -120,6 +121,7 @@
     <ClInclude Include="Config.h" />
     <ClInclude Include="CutData.h" />
     <ClInclude Include="CutSequenceController.h" />
+    <ClInclude Include="EncoderPositionTracker.h" />
     <ClInclude Include="EStopManager.h" />
     <ClInclude Include="FileManager.h" />
     <ClInclude Include="HomingHelper.h" />

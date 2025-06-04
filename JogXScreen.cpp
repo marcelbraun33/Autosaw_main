@@ -41,7 +41,10 @@ void JogXScreen::onHide() {
 
 void JogXScreen::updatePositionDisplay() {
     auto& cutData = _mgr.GetCutData();
-    float current = MotionController::Instance().getAxisPosition(AXIS_X);
+
+    // Use absolute encoder position instead of motor position
+    float current = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
+
     float display = cutData.useStockZero ? (current - cutData.positionZero) : current;
     bool negative = (display < 0.0f);
     static bool lastNeg = false;
@@ -53,6 +56,8 @@ void JogXScreen::updatePositionDisplay() {
         lastNeg = negative;
         ClearCore::ConnectorUsb.Send("Position: ");
         ClearCore::ConnectorUsb.Send(display);
+        ClearCore::ConnectorUsb.Send(" Absolute: ");
+        ClearCore::ConnectorUsb.Send(current);
         ClearCore::ConnectorUsb.Send(" isNegative: ");
         ClearCore::ConnectorUsb.SendLine(negative ? "YES" : "NO");
     }
@@ -85,7 +90,8 @@ void JogXScreen::handleEvent(const genieFrame& e) {
         break;
 
     case WINBUTTON_INC_PLUS: {
-        float cur = MotionController::Instance().getAxisPosition(AXIS_X);
+        // Use absolute position from encoder tracker
+        float cur = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
         MotionController::Instance().moveTo(AXIS_X, cur + cutData.increment, 1.0f);
         showButtonSafe(WINBUTTON_INC_PLUS, 1);
         delay(100);
@@ -94,7 +100,8 @@ void JogXScreen::handleEvent(const genieFrame& e) {
     }
 
     case WINBUTTON_INC_MINUS: {
-        float cur = MotionController::Instance().getAxisPosition(AXIS_X);
+        // Use absolute position from encoder tracker
+        float cur = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
         MotionController::Instance().moveTo(AXIS_X, cur - cutData.increment, 1.0f);
         showButtonSafe(WINBUTTON_INC_MINUS, 1);
         delay(100);
@@ -205,8 +212,9 @@ void JogXScreen::captureZero() {
     cutData.useStockZero = !cutData.useStockZero;
 
     if (cutData.useStockZero) {
-        cutData.positionZero = MotionController::Instance().getAxisPosition(AXIS_X);
-        ClearCore::ConnectorUsb.Send("Zero position captured: ");
+        // Use absolute position from encoder tracker
+        cutData.positionZero = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
+        ClearCore::ConnectorUsb.Send("Zero position captured (absolute): ");
         ClearCore::ConnectorUsb.SendLine(cutData.positionZero);
         showButtonSafe(WINBUTTON_CAPTURE_ZERO, 1);
     }
@@ -234,7 +242,10 @@ void JogXScreen::goToZero() {
 
 void JogXScreen::captureStockLength() {
     auto& cutData = _mgr.GetCutData();
-    float current = MotionController::Instance().getAxisPosition(AXIS_X);
+
+    // Use absolute position from encoder tracker
+    float current = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
+
     float display = cutData.useStockZero ? (current - cutData.positionZero) : current;
     if (display < 0.0f) {
         ClearCore::ConnectorUsb.SendLine("Error: Cannot capture stock length when negative");
@@ -255,7 +266,10 @@ void JogXScreen::captureStockLength() {
 
 void JogXScreen::captureIncrement() {
     auto& cutData = _mgr.GetCutData();
-    float current = MotionController::Instance().getAxisPosition(AXIS_X);
+
+    // Use absolute position from encoder tracker
+    float current = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
+
     float display = cutData.useStockZero ? (current - cutData.positionZero) : current;
     if (display < 0.0f) {
         ClearCore::ConnectorUsb.SendLine("Error: Cannot capture increment when negative");
@@ -265,7 +279,7 @@ void JogXScreen::captureIncrement() {
         delay(50); showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 0);
         return;
     }
-    showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 1);
+    showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 1); // Fix the incomplete line
     delay(200); showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 0);
     setIncrement(fabs(display));
 }

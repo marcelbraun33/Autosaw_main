@@ -4,6 +4,7 @@
 #include "ScreenManager.h"
 #include <ClearCore.h>
 #include "MotionController.h"
+#include "EncoderPositionTracker.h"
 
 // Global timing for initial HLFB delay
 static uint32_t gHomingStartTime = 0;
@@ -75,6 +76,11 @@ void HomingScreen::update() {
         // If both are complete, continue to manual mode
         if (gXHomingComplete && gYHomingComplete) {
             ClearCore::ConnectorUsb.SendLine("[HOMING] Both axes homed — returning to Manual Mode");
+            
+            // Reset encoder position tracking after all axes complete homing
+            EncoderPositionTracker::Instance().resetPositionAfterHoming();
+            ClearCore::ConnectorUsb.SendLine("[HomingScreen] All axes homed, encoder positions reset");
+
             ScreenManager::Instance().ShowManualMode();
         }
     }

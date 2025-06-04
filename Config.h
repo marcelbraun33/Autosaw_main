@@ -198,3 +198,24 @@
 // Form8 (Rotary Z)
 #define WINBUTTON_SET_RPM_F8              36   // Form8 - Winbutton36
 #define WINBUTTON_ENABLE_F8               37   // Form8 - Winbutton37
+
+
+// === EncoderPositionTracker Configuration ===
+// This section defines constants for the absolute position tracking system
+
+// Encoder steps per inch (using existing motor calibration values for consistency)
+#define ENCODER_X_STEPS_PER_INCH  FENCE_STEPS_PER_INCH  // X-axis (fence) encoder resolution
+#define ENCODER_Y_STEPS_PER_INCH  TABLE_STEPS_PER_INCH  // Y-axis (table) encoder resolution
+
+// Position verification tolerance (inches)
+#define ENCODER_POSITION_TOLERANCE  0.002f  // Maximum acceptable difference between commanded and actual position
+
+// Encoder position verification mode
+#define ENCODER_VERIFICATION_ENABLED  true    // Set to false to disable position verification
+
+// Debug settings
+#define ENCODER_DEBUG_LOGGING  true    // Enable/disable detailed position logging
+#define ENCODER_LOG_INTERVAL   1000    // Milliseconds between position log messages
+
+// Motor references for encoder position tracking
+#define MOTOR_SAW_Y  MOTOR_TABLE_Y     // Clarifying Y-axis motor reference for encoder tracking
