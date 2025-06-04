@@ -2,6 +2,8 @@
 #include "YAxis.h"
 #include "Config.h"
 #include "ClearCore.h"
+#include "EncoderPositionTracker.h"
+
 
 static constexpr float MAX_VELOCITY = 10000.0f;   // steps/s
 static constexpr float MAX_ACCELERATION = 100000.0f;  // steps/s^2
@@ -90,6 +92,7 @@ bool YAxis::StartHoming() {
     return ok;
 }
 
+
 void YAxis::Update() {
     if (!_isSetup)
         return;
@@ -106,7 +109,11 @@ void YAxis::Update() {
     else if (!_isHomed && !_homingHelper->hasFailed()) {
         _isHomed = true;
         _hasBeenHomed = true;
-        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Homing complete");
+
+        // Reset encoder position tracking when Y-axis homing completes
+        EncoderPositionTracker::Instance().resetPositionAfterHoming();
+
+        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Homing complete, encoder position reset");
     }
 }
 

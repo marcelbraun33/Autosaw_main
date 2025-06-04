@@ -90,7 +90,10 @@ void JogYScreen::handleEvent(const genieFrame& e) {
 
 void JogYScreen::captureCutStart() {
     auto& cutData = _mgr.GetCutData();
-    cutData.cutStartPoint = MotionController::Instance().getAxisPosition(AXIS_Y);
+    
+    // Use absolute position from encoder tracker
+    cutData.cutStartPoint = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
+    
     cutData.cutLength = cutData.cutEndPoint - cutData.cutStartPoint;
     if (cutData.cutLength < 0) cutData.cutLength = 0;
 
@@ -108,7 +111,10 @@ void JogYScreen::captureCutStart() {
 
 void JogYScreen::captureCutEnd() {
     auto& cutData = _mgr.GetCutData();
-    cutData.cutEndPoint = MotionController::Instance().getAxisPosition(AXIS_Y);
+    
+    // Use absolute position from encoder tracker
+    cutData.cutEndPoint = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
+    
     cutData.cutLength = cutData.cutEndPoint - cutData.cutStartPoint;
     if (cutData.cutLength < 0) cutData.cutLength = 0;
 
@@ -124,7 +130,10 @@ void JogYScreen::captureCutEnd() {
 
 void JogYScreen::captureRetractDistance() {
     auto& cutData = _mgr.GetCutData();
-    float currentPos = MotionController::Instance().getAxisPosition(AXIS_Y);
+    
+    // Use absolute position from encoder tracker
+    float currentPos = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
+    
     float distance = cutData.cutStartPoint - currentPos;
     cutData.retractDistance = (distance > 0) ? distance : 0.0f;
 
@@ -295,7 +304,9 @@ void JogYScreen::updateAllDisplays() {
         static_cast<uint16_t>(cutData.retractDistance * 1000));
     updateCutLengthDisplay();
 
-    float currentPos = MotionController::Instance().getAxisPosition(AXIS_Y);
+    // Use absolute position from encoder tracker
+    float currentPos = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
+    
     genie.WriteObject(GENIE_OBJ_LEDDIGITS,
         LEDDIGITS_TABLE_POSITION_Y,
         static_cast<uint16_t>(currentPos * 1000));
@@ -303,7 +314,10 @@ void JogYScreen::updateAllDisplays() {
 
 void JogYScreen::update() {
     auto& cutData = _mgr.GetCutData();
-    float pos = MotionController::Instance().getAxisPosition(AXIS_Y);
+    
+    // Use absolute position from encoder tracker
+    float pos = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
+    
     genie.WriteObject(GENIE_OBJ_LEDDIGITS,
         LEDDIGITS_TABLE_POSITION_Y,
         static_cast<uint16_t>(pos * 1000));

@@ -108,11 +108,13 @@ float MPGJogManager::getAxisIncrement() const {
 
 // MPGJogManager.cpp - update the onEncoderDelta method
 
+// Update MPGJogManager.cpp
+// Update onEncoderDelta method to use absolute positions from encoder
+
 void MPGJogManager::onEncoderDelta(int deltaClicks) {
     if (!_initialized || !_enabled || deltaClicks == 0)
         return;
 
- 
     // inches per click for each range
     float stepInches;
     switch (_range) {
@@ -137,8 +139,6 @@ void MPGJogManager::onEncoderDelta(int deltaClicks) {
     default:                  velocityScale = 0.5f; break;
     }
 
-
-
     // Only log meaningful movement for debugging
     if (abs(deltaClicks) > 0) {
         ClearCore::ConnectorUsb.Send("[MPG] Moving ");
@@ -151,13 +151,15 @@ void MPGJogManager::onEncoderDelta(int deltaClicks) {
         ClearCore::ConnectorUsb.SendLine(deltaClicks);
     }
 
-    // issue non-blocking jog with scaled velocity
+    // Use absolute position from encoder tracker
     MotionController::Instance().moveToWithRate(
         _currentAxis,
-        MotionController::Instance().getAxisPosition(_currentAxis) + inches,
+        MotionController::Instance().getAbsoluteAxisPosition(_currentAxis) + inches,
         velocityScale
     );
 }
+
+
 
 void MPGJogManager::update() {
     // Only update the range from inputs if necessary
