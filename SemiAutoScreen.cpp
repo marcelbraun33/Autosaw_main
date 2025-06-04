@@ -1,4 +1,8 @@
-// Updated SemiAutoScreen.cpp
+
+
+
+
+
 #include "SemiAutoScreen.h"
 #include "screenmanager.h" 
 #include "MotionController.h"
@@ -81,6 +85,9 @@ void SemiAutoScreen::startFeedToStop() {
     torqueTarget = settings.cutPressure;
 #endif
 
+    // Store the target pressure so we can display it consistently
+    _tempCutPressure = torqueTarget;
+
     // Ensure feedRate is within reasonable bounds
     if (feedRate < 0.1f) feedRate = 0.1f;
     if (feedRate > 1.0f) feedRate = 1.0f;
@@ -106,8 +113,16 @@ void SemiAutoScreen::startFeedToStop() {
 
         // Reset the cut pressure adjustment button
         genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_ADJUST_CUT_PRESSURE, 0);
+
+        // Initialize gauge with a reasonable value based on target
+        genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_CUT_PRESSURE, 50); // Start at 50% to avoid red
+
+        // Make sure the cut pressure display shows the target value
+        genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
+            static_cast<uint16_t>(_tempCutPressure * 10.0f)); // Scale as needed
     }
 }
+
 
 void SemiAutoScreen::feedHold() {
     if (_currentState == STATE_CUTTING) {
@@ -199,6 +214,7 @@ void SemiAutoScreen::advanceIncrement() {
     }
 }
 
+
 void SemiAutoScreen::update() {
     auto& motion = MotionController::Instance();
 
@@ -220,15 +236,28 @@ void SemiAutoScreen::update() {
         // Calculate torque percentage relative to target (0-100%)
         float torquePercentage = (torque / targetTorque) * 100.0f;
 
+        // Clamp the percentage to avoid extreme values causing gauge problems
+        if (torquePercentage > 200.0f) torquePercentage = 200.0f;
+        if (torquePercentage < 0.0f) torquePercentage = 0.0f;
+
         // Update gauge to show percentage of torque target
         uint16_t gaugeValue = static_cast<uint16_t>(torquePercentage);
 
         // Gauge value over 100% will display in red (assuming gauge is configured for this)
         genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_CUT_PRESSURE, gaugeValue);
 
-        // Also update the digital display with actual torque
-        genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
-            static_cast<uint16_t>(torque * 10)); // Scale as needed
+        // For the digital display, we want to show the actual pressure value, not percentage
+        // but we need to avoid showing zero or very low values at startup
+        if (torque < 1.0f && motion.isInTorqueControlledFeed(AXIS_Y)) {
+            // During initial movement when torque is still low, show the target instead
+            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
+                static_cast<uint16_t>(_tempCutPressure * 10.0f)); // Show target as a starting point
+        }
+        else {
+            // Once we have meaningful torque readings, show the actual torque
+            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
+                static_cast<uint16_t>(torque * 10)); // Scale as needed
+        }
 
         // Check if feed completed
         if (!motion.isInTorqueControlledFeed(AXIS_Y) && !motion.isAxisMoving(AXIS_Y)) {
@@ -236,6 +265,15 @@ void SemiAutoScreen::update() {
             _currentState = STATE_READY;
             genie.WriteObject(GENIE_OBJ_LED, LED_READY, 1); // Turn on ready LED
             genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_TO_STOP, 0); // Reset feed button
+
+            // Reset display to show current pressure setting from settings
+#ifdef SETTINGS_HAS_CUT_PRESSURE
+            float cutPressure = SettingsManager::Instance().settings().cutPressure;
+#else
+            float cutPressure = 70.0f;
+#endif
+            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
+                static_cast<uint16_t>(cutPressure * 10.0f)); // Scale as needed
         }
     }
     // If in adjust pressure mode, check for encoder movement directly
@@ -243,33 +281,40 @@ void SemiAutoScreen::update() {
         // Get the current encoder position directly from the hardware
         static int32_t lastEncoderPos = ClearCore::EncoderIn.Position();
         int32_t currentEncoderPos = ClearCore::EncoderIn.Position();
-        
+
         // Calculate delta in encoder counts
         int32_t delta = currentEncoderPos - lastEncoderPos;
-        
+
         // Only process significant changes to avoid noise
         if (abs(delta) >= ENCODER_COUNTS_PER_CLICK) {
             // Update the last position for next time
             lastEncoderPos = currentEncoderPos;
-            
+
             // Determine direction
             float changeAmount = (delta > 0) ? CUT_PRESSURE_INCREMENT : -CUT_PRESSURE_INCREMENT;
-            
+
             // Update the cut pressure value
             _tempCutPressure += changeAmount;
-            
+
             // Clamp to valid range
             if (_tempCutPressure < MIN_CUT_PRESSURE) _tempCutPressure = MIN_CUT_PRESSURE;
             if (_tempCutPressure > MAX_CUT_PRESSURE) _tempCutPressure = MAX_CUT_PRESSURE;
-            
+
             // Debug output
             ClearCore::ConnectorUsb.Send("[SemiAuto] Cut pressure adjusted to: ");
             ClearCore::ConnectorUsb.SendLine(_tempCutPressure);
-            
+
             // Update display
             genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
                 static_cast<uint16_t>(_tempCutPressure * 10.0f));
-            
+
+            // Save the value to settings immediately
+#ifdef SETTINGS_HAS_CUT_PRESSURE
+            auto& settings = SettingsManager::Instance().settings();
+            settings.cutPressure = _tempCutPressure;
+            // Don't call save() every update as it might cause excessive EEPROM writes
+#endif
+
             // If cutting is active, update the torque target immediately for real-time adjustment
             if (motion.isInTorqueControlledFeed(AXIS_Y)) {
                 motion.setTorqueTarget(AXIS_Y, _tempCutPressure);
@@ -348,6 +393,11 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
                 // Update display
                 genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
                     static_cast<uint16_t>(_tempCutPressure * 10.0f)); // Scale for display
+
+                // Save to settings
+#ifdef SETTINGS_HAS_CUT_PRESSURE
+                SettingsManager::Instance().settings().cutPressure = _tempCutPressure;
+#endif
             }
             break;
 
@@ -364,4 +414,7 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
         break;
     }
 }
+
+
+
 
