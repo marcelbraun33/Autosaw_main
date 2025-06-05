@@ -19,6 +19,7 @@ public:
     void handleEvent(const genieFrame& e) override;
     void update() override;
     SemiAutoScreen(ScreenManager& mgr);
+        void updateFeedRateDisplay();
 private:
     void startFeedToStop();
     void advanceIncrement();

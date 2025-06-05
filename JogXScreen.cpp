@@ -66,6 +66,46 @@ void JogXScreen::updatePositionDisplay() {
         static_cast<uint16_t>(scaled));
 }
 
+void JogXScreen::setStockSlicesTimesIncrement() {
+    auto& cutData = _mgr.GetCutData();
+    
+    // Skip if increment is zero or invalid
+    if (cutData.increment <= 0.0f || cutData.totalSlices <= 0) {
+        // Visual feedback for invalid operation
+        showButtonSafe(WINBUTTON_SET_STOCK_SLICES_X_INC, 1);
+        delay(50);
+        showButtonSafe(WINBUTTON_SET_STOCK_SLICES_X_INC, 0);
+        delay(50);
+        showButtonSafe(WINBUTTON_SET_STOCK_SLICES_X_INC, 1);
+        delay(50);
+        showButtonSafe(WINBUTTON_SET_STOCK_SLICES_X_INC, 0);
+        return;
+    }
+    
+    // Calculate new stock length by multiplying increment by total slices
+    float newStockLength = cutData.increment * cutData.totalSlices;
+    
+    ClearCore::ConnectorUsb.Send("Setting stock length to: ");
+    ClearCore::ConnectorUsb.Send(cutData.increment);
+    ClearCore::ConnectorUsb.Send(" x ");
+    ClearCore::ConnectorUsb.Send(cutData.totalSlices);
+    ClearCore::ConnectorUsb.Send(" = ");
+    ClearCore::ConnectorUsb.SendLine(newStockLength);
+    
+    // Set the new stock length
+    cutData.stockLength = newStockLength;
+    
+    // Visual feedback for successful operation
+    showButtonSafe(WINBUTTON_SET_STOCK_SLICES_X_INC, 1);
+    delay(200);
+    showButtonSafe(WINBUTTON_SET_STOCK_SLICES_X_INC, 0);
+    
+    // Update displays
+    updateStockLengthDisplay();
+    updateTotalSlicesDisplay();
+    updateSliceCounterDisplay();
+}
+
 void JogXScreen::handleEvent(const genieFrame& e) {
     if (e.reportObject.cmd != GENIE_REPORT_EVENT || e.reportObject.object != GENIE_OBJ_WINBUTTON)
         return;
@@ -128,6 +168,10 @@ void JogXScreen::handleEvent(const genieFrame& e) {
         showButtonSafe(WINBUTTON_DIVIDE_SET, 1);
         delay(200);
         showButtonSafe(WINBUTTON_DIVIDE_SET, 0);
+        break;
+
+    case WINBUTTON_SET_STOCK_SLICES_X_INC:
+        setStockSlicesTimesIncrement();
         break;
 
     case WINBUTTON_ACTIVATE_JOG:
@@ -206,7 +250,6 @@ void JogXScreen::handleEvent(const genieFrame& e) {
     }
 }
 
-
 void JogXScreen::captureZero() {
     auto& cutData = _mgr.GetCutData();
     cutData.useStockZero = !cutData.useStockZero;
@@ -279,7 +322,7 @@ void JogXScreen::captureIncrement() {
         delay(50); showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 0);
         return;
     }
-    showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 1); // Fix the incomplete line
+    showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 1); 
     delay(200); showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 0);
     setIncrement(fabs(display));
 }

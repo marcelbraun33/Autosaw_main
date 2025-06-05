@@ -1,4 +1,4 @@
-// YAxis.h updated with torque control support
+// ...existing includes...
 #pragma once
 
 #include <ClearCore.h>
@@ -42,6 +42,11 @@ public:
     bool IsInTorqueControlledFeed() const;
     void AbortTorqueControlledFeed();
 
+    // Add public method for debugging (optional, but useful for unit tests or external checks)
+    float DebugGetCurrentFeedRate() const { return _currentFeedRate; }
+    float DebugGetTorquePercent() const { return _torquePct; }
+    bool DebugIsInTorqueControlFeed() const { return _inTorqueControlFeed; }
+
 private:
     // Internal state
     bool    _isSetup = false;
@@ -68,7 +73,7 @@ private:
     float _torqueTarget = 70.0f;    // Default target torque (%)
     float _currentFeedRate = 1.0f;  // Current feed rate (0.0-1.0)
     float _maxFeedRate = 1.0f;      // Maximum feed rate for torque control
-    float _minFeedRate = 0.1f;      // Minimum feed rate (10%)
+    float _minFeedRate = 0.005f;    // Minimum feed rate (10%)
 
     // Torque reading and control methods
     void UpdateTorqueMeasurement();

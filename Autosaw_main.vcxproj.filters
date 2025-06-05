@@ -109,6 +109,9 @@
     <ClCompile Include="HomingHelper.cpp">
       <Filter>Source Files\Core</Filter>
     </ClCompile>
+    <ClCompile Include="EncoderPositionTracker.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.Autosaw_main.vsarduino.h">
@@ -190,6 +193,9 @@
       <Filter>Header Files\Core</Filter>
     </ClInclude>
     <ClInclude Include="CutData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="EncoderPositionTracker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

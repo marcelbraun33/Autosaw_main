@@ -1,4 +1,4 @@
-#pragma once
+
 #include "Screen.h"
 #include "Config.h"
 #include "MotionController.h"

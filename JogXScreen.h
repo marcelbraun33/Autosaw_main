@@ -2,6 +2,8 @@
 #include "Screen.h"
 #include "Config.h"
 #include "CutData.h"
+
+// Forward declaration instead of including ScreenManager.h
 class ScreenManager;
 
 class JogXScreen : public Screen {
@@ -18,7 +20,7 @@ private:
     void captureStockLength();
     void captureIncrement();
     void calculateTotalSlices();
-    void calculateAndSetIncrement();
+    void setStockSlicesTimesIncrement(); // Button 51 handler
     void goToZero();  // "Go To Zero" button
 
     /// Set the global increment, enforce limits, recalc dependents & refresh all displays

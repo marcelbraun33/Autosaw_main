@@ -215,6 +215,7 @@ void SemiAutoScreen::advanceIncrement() {
 }
 
 
+
 void SemiAutoScreen::update() {
     auto& motion = MotionController::Instance();
 
@@ -246,18 +247,10 @@ void SemiAutoScreen::update() {
         // Gauge value over 100% will display in red (assuming gauge is configured for this)
         genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_CUT_PRESSURE, gaugeValue);
 
-        // For the digital display, we want to show the actual pressure value, not percentage
-        // but we need to avoid showing zero or very low values at startup
-        if (torque < 1.0f && motion.isInTorqueControlledFeed(AXIS_Y)) {
-            // During initial movement when torque is still low, show the target instead
-            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
-                static_cast<uint16_t>(_tempCutPressure * 10.0f)); // Show target as a starting point
-        }
-        else {
-            // Once we have meaningful torque readings, show the actual torque
-            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
-                static_cast<uint16_t>(torque * 10)); // Scale as needed
-        }
+        // For the digital display, always show the TARGET pressure value during cutting
+        // This provides a stable reference value rather than showing the fluctuating actual torque
+        genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
+            static_cast<uint16_t>(targetTorque * 10.0f)); // Scale as needed
 
         // Check if feed completed
         if (!motion.isInTorqueControlledFeed(AXIS_Y) && !motion.isAxisMoving(AXIS_Y)) {
@@ -276,6 +269,9 @@ void SemiAutoScreen::update() {
                 static_cast<uint16_t>(cutPressure * 10.0f)); // Scale as needed
         }
     }
+    // Rest of your existing code for adjusting pressure mode...
+
+  
     // If in adjust pressure mode, check for encoder movement directly
     else if (_currentState == STATE_ADJUSTING_PRESSURE) {
         // Get the current encoder position directly from the hardware
