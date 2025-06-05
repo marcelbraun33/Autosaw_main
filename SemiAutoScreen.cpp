@@ -1,8 +1,3 @@
-
-
-
-
-
 #include "SemiAutoScreen.h"
 #include "screenmanager.h" 
 #include "MotionController.h"
@@ -10,6 +5,7 @@
 #include "MPGJogManager.h"
 #include "SettingsManager.h" 
 #include <ClearCore.h>
+#include "Config.h" // Ensure LEDDIGITS_FEED_OVERRIDE and LEDDIGITS_DISTANCE_TO_GO_F2 are available
 
 #ifndef GENIE_OBJ_LED_DIGITS
 #define GENIE_OBJ_LED_DIGITS 15
@@ -223,10 +219,24 @@ void SemiAutoScreen::update() {
     uint16_t rpm = motion.IsSpindleRunning() ? (uint16_t)motion.CommandedRPM() : 0;
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_DISPLAY, rpm);
 
-    // Get and display current Y position
+    // --- Distance to Go: Show remaining distance to cut end point (counts down to zero) ---
+    auto& cutData = _mgr.GetCutData();
     float currentPos = motion.getAbsoluteAxisPosition(AXIS_Y);
+    float distanceToGo = cutData.cutEndPoint - currentPos;
+    if (distanceToGo < 0.0f) distanceToGo = 0.0f; // Clamp to zero if past endpoint
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F2,
-        static_cast<uint16_t>(currentPos * 1000));
+        static_cast<uint16_t>(distanceToGo * 1000));
+
+    // --- Feed Rate Display: Show real-time feed rate during torque-controlled cycle ---
+    if (motion.isInTorqueControlledFeed(AXIS_Y)) {
+        // Get current feed rate (0.0-1.0), scale to percent for display
+        float currentFeedRate = MotionController::Instance().YAxisInstance().DebugGetCurrentFeedRate();
+        genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_FEED_OVERRIDE,
+            static_cast<uint16_t>(currentFeedRate * 100.0f)); // Show as percent
+    } else {
+        // Not in torque feed: clear or show zero
+        genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_FEED_OVERRIDE, 0);
+    }
 
     // If in cutting state, update torque display and check for completion
     if (_currentState == STATE_CUTTING) {

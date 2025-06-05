@@ -25,7 +25,7 @@ public:
 
     // Status queries
     float GetPosition() const;        // Inches
-    float GetTorquePercent() const;   // % estimated torque
+    float GetTorquePercent() const;   // % estimated torque (filtered value)
     bool IsMoving() const;
     bool IsHomed() const;
     bool IsHoming() const;
@@ -70,10 +70,10 @@ private:
 
     // Torque control parameters
     bool _inTorqueControlFeed = false;
-    float _torqueTarget = 70.0f;    // Default target torque (%)
+    float _torqueTarget = 10.0f;    // Default target torque (%)
     float _currentFeedRate = 1.0f;  // Current feed rate (0.0-1.0)
     float _maxFeedRate = 1.0f;      // Maximum feed rate for torque control
-    float _minFeedRate = 0.005f;    // Minimum feed rate (10%)
+    float _minFeedRate = 0.005f;    // Minimum feed rate 
 
     // Torque reading and control methods
     void UpdateTorqueMeasurement();
@@ -85,4 +85,17 @@ private:
     static constexpr float TORQUE_Kp = 0.01f;  // Proportional gain
     static constexpr float TORQUE_Ki = 0.002f; // Integral gain 
     static constexpr float TORQUE_Kd = 0.005f; // Derivative gain
+
+    // Exponential Moving Average (EMA) for torque filtering
+    float _filteredTorque = 0.0f;
+    static constexpr float TORQUE_FILTER_ALPHA = 0.3f; // 0.0 = no update, 1.0 = no filtering
+
+    // --- Moving average buffer for torque smoothing (200ms window) ---
+    static constexpr size_t TORQUE_AVG_BUFFER_SIZE = 64; // Enough for 400ms at ~6ms/sample
+    float _torqueBuffer[TORQUE_AVG_BUFFER_SIZE] = {0.0f};
+    uint32_t _torqueTimeBuffer[TORQUE_AVG_BUFFER_SIZE] = {0};
+    size_t _torqueBufferHead = 0;
+    size_t _torqueBufferCount = 0;
+    float _smoothedTorque = 0.0f;
+    static constexpr uint32_t TORQUE_AVG_WINDOW_MS = 400;
 };

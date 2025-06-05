@@ -254,3 +254,7 @@ void MotionController::abortTorqueControlledFeed(AxisId axis) {
     }
 }
 
+YAxis &MotionController::YAxisInstance() {
+    return yAxis;
+}
+

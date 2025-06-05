@@ -89,6 +89,8 @@ public:
     bool StartHomingAxis(AxisId axis);
     bool StartHomingAll();  // optional convenience for full-machine homing
 
+    // Add this accessor to expose the YAxis instance for feed rate monitoring
+    YAxis &YAxisInstance();
 
 private:
     MotionController();

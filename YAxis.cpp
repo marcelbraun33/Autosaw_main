@@ -196,10 +196,8 @@ float YAxis::GetPosition() const {
 }
 
 float YAxis::GetTorquePercent() const {
-    if (_motor->HlfbState() == MotorDriver::HLFB_HAS_MEASUREMENT) {
-        return _motor->HlfbPercent();
-    }
-    return (_motor->HlfbState() == MotorDriver::HLFB_ASSERTED) ? 100.0f : 0.0f;
+    // Return the moving average torque value
+    return _smoothedTorque;
 }
 
 void YAxis::SetTorqueTarget(float targetPercent) {
@@ -282,15 +280,42 @@ void YAxis::AbortTorqueControlledFeed() {
 }
 
 void YAxis::UpdateTorqueMeasurement() {
+    float newTorque = 0.0f;
     if (_motor->HlfbState() == MotorDriver::HLFB_HAS_MEASUREMENT) {
-        _torquePct = _motor->HlfbPercent();
+        newTorque = _motor->HlfbPercent();
     }
     else if (_motor->HlfbState() == MotorDriver::HLFB_ASSERTED) {
-        _torquePct = 100.0f;
+        newTorque = 100.0f;
     }
     else {
-        _torquePct = 0.0f;
+        newTorque = 0.0f;
     }
+
+    // --- Moving average over last 200ms ---
+    uint32_t now = ClearCore::TimingMgr.Milliseconds();
+    _torqueBuffer[_torqueBufferHead] = newTorque;
+    _torqueTimeBuffer[_torqueBufferHead] = now;
+    _torqueBufferHead = (_torqueBufferHead + 1) % TORQUE_AVG_BUFFER_SIZE;
+    if (_torqueBufferCount < TORQUE_AVG_BUFFER_SIZE) {
+        _torqueBufferCount++;
+    }
+
+    // Remove samples older than 200ms and compute average
+    float sum = 0.0f;
+    size_t validCount = 0;
+    for (size_t i = 0; i < _torqueBufferCount; ++i) {
+        size_t idx = (_torqueBufferHead + TORQUE_AVG_BUFFER_SIZE - i - 1) % TORQUE_AVG_BUFFER_SIZE;
+        if (now - _torqueTimeBuffer[idx] <= TORQUE_AVG_WINDOW_MS) {
+            sum += _torqueBuffer[idx];
+            validCount++;
+        } else {
+            break; // Older than window, stop
+        }
+    }
+    _smoothedTorque = (validCount > 0) ? (sum / validCount) : newTorque;
+
+    // For legacy/debug, still update _torquePct with the latest value
+    _torquePct = newTorque;
 }
 
 void YAxis::AdjustFeedRateBasedOnTorque() {
@@ -304,7 +329,7 @@ void YAxis::AdjustFeedRateBasedOnTorque() {
     float torqueError = _torqueTarget - _torquePct;
 
     // Enhanced PID control
-    static constexpr float TORQUE_Kp_Override = 0.08f;  // Faster P response
+    static constexpr float TORQUE_Kp_Override = 0.00004f;  // Faster P response
     static constexpr float TORQUE_Ki_Override = 0.01f;  // Stronger I for steady-state
     static constexpr float TORQUE_Kd_Override = 0.02f;  // D term for smoothing
 
