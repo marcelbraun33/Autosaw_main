@@ -4,6 +4,7 @@
 #include "UIInputManager.h"
 #include "MPGJogManager.h"
 #include "SettingsManager.h"
+#include "JogUtilities.h"
 #include <cmath>
 #include "Config.h"
 
@@ -132,9 +133,8 @@ void JogXScreen::handleEvent(const genieFrame& e) {
         break;
 
     case WINBUTTON_INC_PLUS: {
-        // Use absolute position from encoder tracker
-        float cur = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
-        MotionController::Instance().moveTo(AXIS_X, cur + cutData.increment, 1.0f);
+        // Replace old code with JogUtilities::Increment
+        JogUtilities::Increment(cutData, AXIS_X);
         showButtonSafe(WINBUTTON_INC_PLUS, 1);
         delay(100);
         showButtonSafe(WINBUTTON_INC_PLUS, 0);

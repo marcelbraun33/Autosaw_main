@@ -4,6 +4,7 @@
 #include "UIInputManager.h"
 #include "MPGJogManager.h"
 #include "SettingsManager.h" 
+#include "JogUtilities.h"  // Added include for JogUtilities
 #include <ClearCore.h>
 #include "Config.h" // Ensure LEDDIGITS_FEED_OVERRIDE and LEDDIGITS_DISTANCE_TO_GO_F2 are available
 
@@ -395,12 +396,12 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
             break;
 
         case WINBUTTON_INC_PLUS_F2:
-            // Increment setting
-            advanceIncrement();
+            // Use JogUtilities::Increment instead of direct motion controller calls
+            JogUtilities::Increment(_mgr.GetCutData(), AXIS_X);
             break;
 
         case WINBUTTON_INC_MINUS_F2:
-            // Decrement setting in adjustment mode
+            // Use JogUtilities::Decrement when not in pressure adjustment mode
             if (_currentState == STATE_ADJUSTING_PRESSURE) {
                 _tempCutPressure -= CUT_PRESSURE_INCREMENT;
                 if (_tempCutPressure < MIN_CUT_PRESSURE) {
@@ -415,6 +416,9 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
 #ifdef SETTINGS_HAS_CUT_PRESSURE
                 SettingsManager::Instance().settings().cutPressure = _tempCutPressure;
 #endif
+            } else {
+                // Use the JogUtilities function for decrement when not adjusting pressure
+                JogUtilities::Decrement(_mgr.GetCutData(), AXIS_X);
             }
             break;
 
@@ -424,8 +428,8 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
             break;
 
         case WINBUTTON_HOME_F2:
-            // Home Y axis
-            MotionController::Instance().StartHomingAxis(AXIS_Y);
+            // Use JogUtilities::GoToZero instead of direct homing
+            JogUtilities::GoToZero(_mgr.GetCutData(), AXIS_X);
             break;
         }
         break;

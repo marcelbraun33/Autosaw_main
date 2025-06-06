@@ -204,5 +204,8 @@
     <ClInclude Include="DynamicFeed.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="JogUtilities.h">
+      <Filter>Header Files\Motion</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
