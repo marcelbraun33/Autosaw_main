@@ -431,6 +431,16 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
             // Use JogUtilities::GoToZero instead of direct homing
             JogUtilities::GoToZero(_mgr.GetCutData(), AXIS_X);
             break;
+
+        case WINBUTTON_STOCK_ZERO:
+            // Use JogUtilities::GoToZero to go to stock zero position
+            JogUtilities::GoToZero(_mgr.GetCutData(), AXIS_X);
+
+            // Visual feedback for button press
+            showButtonSafe(WINBUTTON_STOCK_ZERO, 1);
+            delay(200);
+            showButtonSafe(WINBUTTON_STOCK_ZERO, 0);
+            break;
         }
         break;
     }
