@@ -1,4 +1,4 @@
-
+ 
 #pragma once
 
     static const int kMaxCuts = 100;

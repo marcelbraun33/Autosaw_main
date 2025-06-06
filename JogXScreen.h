@@ -14,6 +14,9 @@ public:
     void update() override;
     JogXScreen(ScreenManager& mgr);
 
+    // Add a static getter for cut thickness (adjust as needed)
+    static float GetCutThickness();
+
 private:
     // UI and logic helpers
     void captureZero();
@@ -33,6 +36,9 @@ private:
     void updateThicknessDisplay();
     void updateTotalSlicesDisplay();
     void updateSliceCounterDisplay();
+
+protected:
+    static float m_cutThickness; // Ensure this holds the current cut thickness
 
     ScreenManager& _mgr;
 };

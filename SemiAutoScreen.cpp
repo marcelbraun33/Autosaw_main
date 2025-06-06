@@ -44,6 +44,10 @@ void SemiAutoScreen::onShow() {
     // Initialize the gauge to show the target torque
     genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_CUT_PRESSURE,
         static_cast<uint16_t>(0)); // Start at zero
+
+    // Get the thickness directly from CutData
+    auto& cutData = _mgr.GetCutData();
+    UpdateThicknessLed(cutData.thickness);
 }
 
 void SemiAutoScreen::onHide() {
@@ -219,8 +223,15 @@ void SemiAutoScreen::update() {
     uint16_t rpm = motion.IsSpindleRunning() ? (uint16_t)motion.CommandedRPM() : 0;
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_DISPLAY, rpm);
 
-    // --- Distance to Go: Show remaining distance to cut end point (counts down to zero) ---
+    // Get access to CutData
     auto& cutData = _mgr.GetCutData();
+    
+    // Update thickness display if it has changed
+    if (m_lastThickness != cutData.thickness) {
+        UpdateThicknessLed(cutData.thickness);
+    }
+
+    // --- Distance to Go: Show remaining distance to cut end point (counts down to zero) ---
     float currentPos = motion.getAbsoluteAxisPosition(AXIS_Y);
     float distanceToGo = cutData.cutEndPoint - currentPos;
     if (distanceToGo < 0.0f) distanceToGo = 0.0f; // Clamp to zero if past endpoint
@@ -244,17 +255,17 @@ void SemiAutoScreen::update() {
         float torque = motion.getTorquePercent(AXIS_Y);
         float targetTorque = motion.getTorqueTarget(AXIS_Y);
 
-        // Calculate torque percentage relative to target (0-100%)
+        // Calculate torque percentage relative to target (0-125%)
         float torquePercentage = (torque / targetTorque) * 100.0f;
 
-        // Clamp the percentage to avoid extreme values causing gauge problems
-        if (torquePercentage > 200.0f) torquePercentage = 200.0f;
+        // Clamp the percentage to allow values up to 125% for the red zone
+        if (torquePercentage > 125.0f) torquePercentage = 125.0f;
         if (torquePercentage < 0.0f) torquePercentage = 0.0f;
 
         // Update gauge to show percentage of torque target
         uint16_t gaugeValue = static_cast<uint16_t>(torquePercentage);
 
-        // Gauge value over 100% will display in red (assuming gauge is configured for this)
+        // Gauge value will now go up to 125% showing the red zone properly
         genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_CUT_PRESSURE, gaugeValue);
 
         // For the digital display, always show the TARGET pressure value during cutting
@@ -419,6 +430,15 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
         }
         break;
     }
+}
+
+void SemiAutoScreen::UpdateThicknessLed(float thickness) {
+    m_lastThickness = thickness;
+    // Scale thickness to match display convention (e.g., *1000)
+    int32_t scaled = static_cast<int32_t>(round(thickness * 1000.0f));
+    
+    // Update the LEDDIGITS_THICKNESS_F2 (ID 28) with thickness value
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_THICKNESS_F2, static_cast<uint16_t>(scaled));
 }
 
 

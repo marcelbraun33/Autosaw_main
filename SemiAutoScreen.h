@@ -22,7 +22,11 @@ public:
     void handleEvent(const genieFrame& e) override;
     void update() override;
     SemiAutoScreen(ScreenManager& mgr);
-        void updateFeedRateDisplay();
+    void updateFeedRateDisplay();
+
+    // Update the thickness LED display (IDs 20 and 8)
+    void UpdateThicknessLed(float thickness);
+
 private:
     void startFeedToStop();
     void advanceIncrement();
@@ -38,4 +42,8 @@ private:
     static constexpr float CUT_PRESSURE_INCREMENT = 1.0f;
     static constexpr float MIN_CUT_PRESSURE = 1.0f;  // Changed from 20.0f to 1.0f
     static constexpr float MAX_CUT_PRESSURE = 100.0f;
+
+protected:
+    // Optionally, store the last thickness value for display
+    float m_lastThickness = 0.0f;
 };

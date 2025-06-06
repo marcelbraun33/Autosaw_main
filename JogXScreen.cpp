@@ -13,6 +13,8 @@
 
 extern Genie genie;
 
+float JogXScreen::m_cutThickness = 0.0f; // Initialize static member
+
 JogXScreen::JogXScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
 void JogXScreen::onShow() {
@@ -68,7 +70,7 @@ void JogXScreen::updatePositionDisplay() {
 
 void JogXScreen::setStockSlicesTimesIncrement() {
     auto& cutData = _mgr.GetCutData();
-    
+
     // Skip if increment is zero or invalid
     if (cutData.increment <= 0.0f || cutData.totalSlices <= 0) {
         // Visual feedback for invalid operation
@@ -81,25 +83,25 @@ void JogXScreen::setStockSlicesTimesIncrement() {
         showButtonSafe(WINBUTTON_SET_STOCK_SLICES_X_INC, 0);
         return;
     }
-    
+
     // Calculate new stock length by multiplying increment by total slices
     float newStockLength = cutData.increment * cutData.totalSlices;
-    
+
     ClearCore::ConnectorUsb.Send("Setting stock length to: ");
     ClearCore::ConnectorUsb.Send(cutData.increment);
     ClearCore::ConnectorUsb.Send(" x ");
     ClearCore::ConnectorUsb.Send(cutData.totalSlices);
     ClearCore::ConnectorUsb.Send(" = ");
     ClearCore::ConnectorUsb.SendLine(newStockLength);
-    
+
     // Set the new stock length
     cutData.stockLength = newStockLength;
-    
+
     // Visual feedback for successful operation
     showButtonSafe(WINBUTTON_SET_STOCK_SLICES_X_INC, 1);
     delay(200);
     showButtonSafe(WINBUTTON_SET_STOCK_SLICES_X_INC, 0);
-    
+
     // Update displays
     updateStockLengthDisplay();
     updateTotalSlicesDisplay();
@@ -322,7 +324,7 @@ void JogXScreen::captureIncrement() {
         delay(50); showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 0);
         return;
     }
-    showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 1); 
+    showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 1);
     delay(200); showButtonSafe(WINBUTTON_CAPTURE_INCREMENT, 0);
     setIncrement(fabs(display));
 }
@@ -383,14 +385,26 @@ void JogXScreen::updateIncrementDisplay() {
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_INCREMENT, static_cast<uint16_t>(scaled));
 }
 
+// Updated to show thickness on all screens
 void JogXScreen::updateThicknessDisplay() {
     auto& cutData = _mgr.GetCutData();
     if (cutData.thickness < 0.0f) cutData.thickness = 0.0f;
     else if (cutData.thickness > 10.0f) cutData.thickness = 10.0f;
+
+    // Store in static member for access by other screens
+    m_cutThickness = cutData.thickness;
+
     ClearCore::ConnectorUsb.Send("Updating thickness display to: ");
     ClearCore::ConnectorUsb.SendLine(cutData.thickness);
+
+    // Calculate scaled value once
     int32_t scaled = static_cast<int32_t>(round(cutData.thickness * 1000.0f));
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_THICKNESS, static_cast<uint16_t>(scaled));
+    uint16_t scaledValue = static_cast<uint16_t>(scaled);
+
+    // Update all thickness displays across different forms
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_THICKNESS, scaledValue); // Form 1 (JogX)
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_THICKNESS_F2, scaledValue);  // Form 2 (SemiAuto)
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_THICKNESS_F5, scaledValue);  // Form 5 (AutoCut)
 }
 
 void JogXScreen::updateTotalSlicesDisplay() {
@@ -424,4 +438,9 @@ void JogXScreen::update() {
             updateSliceCounterDisplay();
         }
     }
+}
+
+float JogXScreen::GetCutThickness() {
+    auto& cutData = ScreenManager::Instance().GetCutData();
+    return cutData.thickness;
 }
