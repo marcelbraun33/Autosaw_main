@@ -28,7 +28,10 @@ bool DynamicFeed::start(float targetPosition, float initialVelocityScale) {
         return false;
     }
 
-    _isActive = true;
+    // Save the current position for retract
+    _startPos = static_cast<float>(_motor->PositionRefCommanded()) / _stepsPerInch;
+
+    _state = State::Feeding;
     _targetPos = desired;
     _maxFeedRate = (initialVelocityScale > 0.01f && initialVelocityScale <= 1.0f) ?
         initialVelocityScale : 0.5f;
@@ -36,11 +39,8 @@ bool DynamicFeed::start(float targetPosition, float initialVelocityScale) {
     _torqueErrorAccumulator = 0.0f;
     _lastTorqueUpdateTime = ClearCore::TimingMgr.Milliseconds();
 
-    // Get current position from the owner
-    float currentPos = static_cast<float>(_motor->PositionRefCommanded()) / _stepsPerInch;
-    
     // Start velocity move in the correct direction
-    float direction = (_targetPos > currentPos) ? 1.0f : -1.0f;
+    float direction = (_targetPos > _startPos) ? 1.0f : -1.0f;
     int32_t velocitySteps = static_cast<int32_t>(direction * _currentFeedRate * _stepsPerInch);
     _motor->EnableRequest(true);
     _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * _currentFeedRate));
@@ -58,35 +58,44 @@ bool DynamicFeed::start(float targetPosition, float initialVelocityScale) {
 }
 
 void DynamicFeed::abort() {
-    if (_isActive) {
-        // Let YAxis handle the stop command
-        _isActive = false;
-        ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Torque-controlled feed aborted");
-    }
+    stopAll();
+    ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Operation aborted");
 }
 
 bool DynamicFeed::update(float currentPos) {
-    if (!_isActive) {
+    switch (_state) {
+    case State::Idle:
         return false;
+
+    case State::Feeding: {
+        adjustFeedRateBasedOnTorque();
+        float direction = (_targetPos > _startPos) ? 1.0f : -1.0f;
+        // Check if we've reached or passed the target position
+        if ((direction > 0 && currentPos >= _targetPos) ||
+            (direction < 0 && currentPos <= _targetPos)) {
+            ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Feed complete, starting retract");
+            startRetract();
+        }
+        break;
     }
 
-    adjustFeedRateBasedOnTorque();
-    
-    float direction = (_targetPos > currentPos) ? 1.0f : -1.0f;
-    
-    // Check if we've reached or passed the target position
-    if ((direction > 0 && currentPos >= _targetPos) ||
-        (direction < 0 && currentPos <= _targetPos)) {
-        _isActive = false;
-        ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Torque-controlled feed completed");
-        return true;
+    case State::Retracting: {
+        float direction = (_startPos > _targetPos) ? 1.0f : -1.0f;
+        // Check if we've reached or passed the start position
+        if ((direction > 0 && currentPos >= _startPos) ||
+            (direction < 0 && currentPos <= _startPos)) {
+            stopAll();
+            ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Retract complete, ready");
+            return true; // Entire cycle complete
+        }
+        break;
     }
-    
+    }
     return false;
 }
 
 bool DynamicFeed::isActive() const {
-    return _isActive;
+    return _state != State::Idle;
 }
 
 void DynamicFeed::setTorqueTarget(float targetPercent) {
@@ -137,15 +146,13 @@ float DynamicFeed::updateTorqueMeasurement() {
         if (now - _torqueTimeBuffer[idx] <= TORQUE_AVG_WINDOW_MS) {
             sum += _torqueBuffer[idx];
             validCount++;
-        } else {
-            break; // Older than window, stop
+        }
+        else {
+            break;
         }
     }
     _smoothedTorque = (validCount > 0) ? (sum / validCount) : newTorque;
-
-    // For current value measurement
     _torquePct = newTorque;
-    
     return _smoothedTorque;
 }
 
@@ -157,8 +164,17 @@ float DynamicFeed::getCurrentFeedRate() const {
     return _currentFeedRate;
 }
 
+void DynamicFeed::setRapidVelocityScale(float scale) {
+    _rapidFeedRate = (scale < _minFeedRate) ? _minFeedRate :
+        (scale > 1.0f) ? 1.0f : scale;
+}
+
+float DynamicFeed::getRapidVelocityScale() const {
+    return _rapidFeedRate;
+}
+
 void DynamicFeed::adjustFeedRateBasedOnTorque() {
-    if (!_isActive) return;
+    if (_state != State::Feeding) return;
 
     uint32_t now = ClearCore::TimingMgr.Milliseconds();
     float dt = static_cast<float>(now - _lastTorqueUpdateTime) / 1000.0f;
@@ -167,46 +183,36 @@ void DynamicFeed::adjustFeedRateBasedOnTorque() {
 
     float torqueError = _torqueTarget - _torquePct;
 
-    // Keep track of previous error for derivative term
     static float previousTorqueError = 0.0f;
     float torqueErrorDerivative = (torqueError - previousTorqueError) / dt;
     previousTorqueError = torqueError;
 
-    // Update integral with anti-windup
     _torqueErrorAccumulator += torqueError * dt;
     _torqueErrorAccumulator = (_torqueErrorAccumulator > 5.0f) ? 5.0f :
         (_torqueErrorAccumulator < -5.0f) ? -5.0f : _torqueErrorAccumulator;
 
-    // Full PID calculation
     float feedAdjustment = (TORQUE_Kp * torqueError) +
         (TORQUE_Ki * _torqueErrorAccumulator) +
         (TORQUE_Kd * torqueErrorDerivative);
 
-    // Calculate target feed rate
     float targetFeedRate = _currentFeedRate + feedAdjustment * dt;
     targetFeedRate = (targetFeedRate < _minFeedRate) ? _minFeedRate :
         (targetFeedRate > _maxFeedRate) ? _maxFeedRate : targetFeedRate;
 
-    // Smoothly transition to target feed rate
-    float rateOfChange = 15.0f; // Higher = faster response (adjust as needed)
+    float rateOfChange = 15.0f;
     float previousFeedRate = _currentFeedRate;
     _currentFeedRate += (targetFeedRate - _currentFeedRate) * min(1.0f, dt * rateOfChange);
 
-    // More frequent updates with smaller threshold
     static uint32_t lastVelocityUpdateTime = 0;
-    bool significantChange = fabs(_currentFeedRate - previousFeedRate) > 0.002f; // 0.2% threshold
-    bool timeToUpdate = (now - lastVelocityUpdateTime) > 20; // 20ms interval (50Hz)
+    bool significantChange = fabs(_currentFeedRate - previousFeedRate) > 0.002f;
+    bool timeToUpdate = (now - lastVelocityUpdateTime) > 20;
 
     if (significantChange || timeToUpdate) {
         lastVelocityUpdateTime = now;
-
-        // Get current position from motor
         float currentPos = static_cast<float>(_motor->PositionRefCommanded()) / _stepsPerInch;
-        float direction = (_targetPos > currentPos) ? 1.0f : -1.0f;
+        float direction = (_targetPos > _startPos) ? 1.0f : -1.0f;
         int32_t velocitySteps = static_cast<int32_t>(direction * _currentFeedRate * MAX_VELOCITY);
-
-        // Update velocity without stopping
-        bool result = _motor->MoveVelocity(velocitySteps);
+        _motor->MoveVelocity(velocitySteps);
 
         ClearCore::ConnectorUsb.Send("[DynamicFeed] Feed rate updated: ");
         ClearCore::ConnectorUsb.Send(_currentFeedRate * 100.0f, 1);
@@ -214,19 +220,25 @@ void DynamicFeed::adjustFeedRateBasedOnTorque() {
         ClearCore::ConnectorUsb.Send((_currentFeedRate - previousFeedRate) * 100.0f, 2);
         ClearCore::ConnectorUsb.Send("%, error: ");
         ClearCore::ConnectorUsb.Send(torqueError, 2);
-        ClearCore::ConnectorUsb.SendLine(result ? "" : " (FAILED)");
+        ClearCore::ConnectorUsb.SendLine("");
     }
+}
 
-    // Regular logging
-    static uint32_t lastLogTime = 0;
-    if (now - lastLogTime > 250) {
-        lastLogTime = now;
-        ClearCore::ConnectorUsb.Send("[DynamicFeed] Torque: ");
-        ClearCore::ConnectorUsb.Send(_torquePct, 1);
-        ClearCore::ConnectorUsb.Send("%, Target: ");
-        ClearCore::ConnectorUsb.Send(_torqueTarget, 1);
-        ClearCore::ConnectorUsb.Send("%, Feed rate: ");
-        ClearCore::ConnectorUsb.Send(_currentFeedRate * 100.0f, 1);
-        ClearCore::ConnectorUsb.SendLine("%");
-    }
+void DynamicFeed::startRetract() {
+    _state = State::Retracting;
+    // Use rapid feed rate for retract
+    float direction = (_startPos > _targetPos) ? 1.0f : -1.0f;
+    int32_t velocitySteps = static_cast<int32_t>(direction * _rapidFeedRate * _stepsPerInch);
+    _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * _rapidFeedRate));
+    _motor->MoveVelocity(velocitySteps);
+    ClearCore::ConnectorUsb.Send("[DynamicFeed] Retracting to ");
+    ClearCore::ConnectorUsb.Send(_startPos);
+    ClearCore::ConnectorUsb.Send(" inches at ");
+    ClearCore::ConnectorUsb.Send(_rapidFeedRate * 100.0f, 0);
+    ClearCore::ConnectorUsb.SendLine("% rapid speed");
+}
+
+void DynamicFeed::stopAll() {
+    _motor->MoveStopDecel();
+    _state = State::Idle;
 }
