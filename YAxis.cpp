@@ -2,6 +2,7 @@
 #include "Config.h"
 #include "ClearCore.h"
 #include "EncoderPositionTracker.h"
+#include "DynamicFeed.h"
 
 static constexpr float MAX_VELOCITY = 10000.0f;      // steps/s
 static constexpr float MAX_ACCELERATION = 100000.0f; // steps/s^2
@@ -26,10 +27,12 @@ YAxis::YAxis()
     params.timeoutMs = HOMING_TIMEOUT_MS;
 
     _homingHelper = new HomingHelper(params);
+    _dynamicFeed = new DynamicFeed(this, _stepsPerInch, _motor);
 }
 
 YAxis::~YAxis() {
     delete _homingHelper;
+    delete _dynamicFeed;
 }
 
 void YAxis::Setup() {
@@ -95,7 +98,7 @@ void YAxis::Update() {
     // Update position and torque
     _currentPos = static_cast<float>(_motor->PositionRefCommanded()) / _stepsPerInch;
     _isMoving = !_motor->StepsComplete();
-    UpdateTorqueMeasurement();
+    _torquePct = _dynamicFeed->updateTorqueMeasurement();
 
     // --- DEBUG: Log torque and feed state for troubleshooting ---
     static uint32_t lastDebugLog = 0;
@@ -103,29 +106,24 @@ void YAxis::Update() {
     if (now - lastDebugLog > 500) {
         lastDebugLog = now;
         ClearCore::ConnectorUsb.Send("[Y-Axis][DEBUG] inTorqueControlFeed: ");
-        ClearCore::ConnectorUsb.Send(_inTorqueControlFeed ? "true" : "false");
+        ClearCore::ConnectorUsb.Send(IsInTorqueControlledFeed() ? "true" : "false");
         ClearCore::ConnectorUsb.Send(", isMoving: ");
         ClearCore::ConnectorUsb.Send(_isMoving ? "true" : "false");
         ClearCore::ConnectorUsb.Send(", torquePct: ");
         ClearCore::ConnectorUsb.Send(_torquePct, 1);
         ClearCore::ConnectorUsb.Send(", torqueTarget: ");
-        ClearCore::ConnectorUsb.Send(_torqueTarget, 1);
+        ClearCore::ConnectorUsb.Send(GetTorqueTarget(), 1);
         ClearCore::ConnectorUsb.Send(", feedRate: ");
-        ClearCore::ConnectorUsb.Send(_currentFeedRate * 100.0f, 1);
+        ClearCore::ConnectorUsb.Send(DebugGetCurrentFeedRate() * 100.0f, 1);
         ClearCore::ConnectorUsb.SendLine("%");
     }
     // ------------------------------------------------------------
 
-    // --- Torque-controlled feed logic ---
-    if (_inTorqueControlFeed) {
-        AdjustFeedRateBasedOnTorque();
-        float direction = (_targetPos > _currentPos) ? 1.0f : -1.0f;
-        // Check if we've reached or passed the target position
-        if ((direction > 0 && _currentPos >= _targetPos) ||
-            (direction < 0 && _currentPos <= _targetPos)) {
+    // Check if we're in torque-controlled feed mode
+    if (IsInTorqueControlledFeed()) {
+        // Let dynamic feed module handle updates and check for completion
+        if (_dynamicFeed->update(_currentPos)) {
             Stop();
-            _inTorqueControlFeed = false;
-            ClearCore::ConnectorUsb.SendLine("[Y-Axis] Torque-controlled feed completed");
         }
         return;
     }
@@ -189,6 +187,9 @@ void YAxis::Stop() {
 void YAxis::EmergencyStop() {
     _motor->MoveStopAbrupt();
     _isMoving = false;
+    
+    // Make sure to abort any dynamic feed operations
+    AbortTorqueControlledFeed();
 }
 
 float YAxis::GetPosition() const {
@@ -196,20 +197,15 @@ float YAxis::GetPosition() const {
 }
 
 float YAxis::GetTorquePercent() const {
-    // Return the moving average torque value
-    return _smoothedTorque;
+    return _dynamicFeed->getTorquePercent();
 }
 
 void YAxis::SetTorqueTarget(float targetPercent) {
-    _torqueTarget = (targetPercent < 1.0f) ? 1.0f :
-        (targetPercent > 95.0f) ? 95.0f : targetPercent;
-    ClearCore::ConnectorUsb.Send("[Y-Axis] Torque target set to ");
-    ClearCore::ConnectorUsb.Send(_torqueTarget, 1);
-    ClearCore::ConnectorUsb.SendLine("%");
+    _dynamicFeed->setTorqueTarget(targetPercent);
 }
 
 float YAxis::GetTorqueTarget() const {
-    return _torqueTarget;
+    return _dynamicFeed->getTorqueTarget();
 }
 
 bool YAxis::StartTorqueControlledFeed(float targetPosition, float initialVelocityScale) {
@@ -226,176 +222,37 @@ bool YAxis::StartTorqueControlledFeed(float targetPosition, float initialVelocit
         return false;
     }
 
-    float desired = targetPosition;
-    if (desired < 0.0f || desired > MAX_Y_INCHES) {
-        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Torque feed: target out of bounds");
-        return false;
-    }
-
-    _inTorqueControlFeed = true;
-    _targetPos = desired;
-    _maxFeedRate = (initialVelocityScale > 0.01f && initialVelocityScale <= 1.0f) ?
-        initialVelocityScale : 0.5f;
-    _currentFeedRate = _maxFeedRate;
-    _torqueErrorAccumulator = 0.0f;
-    _lastTorqueUpdateTime = ClearCore::TimingMgr.Milliseconds();
-
-    // Start velocity move in the correct direction
-    float direction = (_targetPos > _currentPos) ? 1.0f : -1.0f;
-    int32_t velocitySteps = static_cast<int32_t>(direction * _currentFeedRate * _stepsPerInch);
-    _motor->EnableRequest(true);
-    _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * _currentFeedRate));
-    _motor->MoveVelocity(velocitySteps);
     _isMoving = true;
-
-    ClearCore::ConnectorUsb.Send("[Y-Axis] Starting torque-controlled feed to ");
-    ClearCore::ConnectorUsb.Send(_targetPos);
-    ClearCore::ConnectorUsb.Send(" inches at ");
-    ClearCore::ConnectorUsb.Send(_currentFeedRate * 100.0f, 0);
-    ClearCore::ConnectorUsb.Send("% speed, target torque: ");
-    ClearCore::ConnectorUsb.Send(_torqueTarget, 1);
-    ClearCore::ConnectorUsb.SendLine("%");
-
-    return true;
+    return _dynamicFeed->start(targetPosition, initialVelocityScale);
 }
 
 void YAxis::UpdateFeedRate(float newVelocityScale) {
     if (!_isSetup || !_isMoving) return;
-    float velocityScale = (newVelocityScale < _minFeedRate) ? _minFeedRate :
-        (newVelocityScale > 1.0f) ? 1.0f : newVelocityScale;
-    _currentFeedRate = velocityScale;
-    _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * velocityScale));
+    _dynamicFeed->updateFeedRate(newVelocityScale);
 }
 
 bool YAxis::IsInTorqueControlledFeed() const {
-    return _inTorqueControlFeed;
+    return _dynamicFeed->isActive();
 }
 
 void YAxis::AbortTorqueControlledFeed() {
-    if (_inTorqueControlFeed) {
+    if (_dynamicFeed->isActive()) {
+        _dynamicFeed->abort();
         Stop();
-        _inTorqueControlFeed = false;
-        ClearCore::ConnectorUsb.SendLine("[Y-Axis] Torque-controlled feed aborted");
     }
 }
 
-void YAxis::UpdateTorqueMeasurement() {
-    float newTorque = 0.0f;
-    if (_motor->HlfbState() == MotorDriver::HLFB_HAS_MEASUREMENT) {
-        newTorque = _motor->HlfbPercent();
-    }
-    else if (_motor->HlfbState() == MotorDriver::HLFB_ASSERTED) {
-        newTorque = 100.0f;
-    }
-    else {
-        newTorque = 0.0f;
-    }
-
-    // --- Moving average over last 200ms ---
-    uint32_t now = ClearCore::TimingMgr.Milliseconds();
-    _torqueBuffer[_torqueBufferHead] = newTorque;
-    _torqueTimeBuffer[_torqueBufferHead] = now;
-    _torqueBufferHead = (_torqueBufferHead + 1) % TORQUE_AVG_BUFFER_SIZE;
-    if (_torqueBufferCount < TORQUE_AVG_BUFFER_SIZE) {
-        _torqueBufferCount++;
-    }
-
-    // Remove samples older than 200ms and compute average
-    float sum = 0.0f;
-    size_t validCount = 0;
-    for (size_t i = 0; i < _torqueBufferCount; ++i) {
-        size_t idx = (_torqueBufferHead + TORQUE_AVG_BUFFER_SIZE - i - 1) % TORQUE_AVG_BUFFER_SIZE;
-        if (now - _torqueTimeBuffer[idx] <= TORQUE_AVG_WINDOW_MS) {
-            sum += _torqueBuffer[idx];
-            validCount++;
-        } else {
-            break; // Older than window, stop
-        }
-    }
-    _smoothedTorque = (validCount > 0) ? (sum / validCount) : newTorque;
-
-    // For legacy/debug, still update _torquePct with the latest value
-    _torquePct = newTorque;
+float YAxis::DebugGetCurrentFeedRate() const {
+    return _dynamicFeed->getCurrentFeedRate();
 }
 
-void YAxis::AdjustFeedRateBasedOnTorque() {
-    if (!_inTorqueControlFeed || !_isMoving) return;
-
-    uint32_t now = ClearCore::TimingMgr.Milliseconds();
-    float dt = static_cast<float>(now - _lastTorqueUpdateTime) / 1000.0f;
-    _lastTorqueUpdateTime = now;
-    if (dt < 0.005f || dt > 0.5f) dt = 0.01f;
-
-    float torqueError = _torqueTarget - _torquePct;
-
-    // Enhanced PID control
-    static constexpr float TORQUE_Kp_Override = 0.00004f;  // Faster P response
-    static constexpr float TORQUE_Ki_Override = 0.01f;  // Stronger I for steady-state
-    static constexpr float TORQUE_Kd_Override = 0.02f;  // D term for smoothing
-
-    // Keep track of previous error for derivative term
-    static float previousTorqueError = 0.0f;
-    float torqueErrorDerivative = (torqueError - previousTorqueError) / dt;
-    previousTorqueError = torqueError;
-
-    // Update integral with anti-windup
-    _torqueErrorAccumulator += torqueError * dt;
-    _torqueErrorAccumulator = (_torqueErrorAccumulator > 5.0f) ? 5.0f :
-        (_torqueErrorAccumulator < -5.0f) ? -5.0f : _torqueErrorAccumulator;
-
-    // Full PID calculation
-    float feedAdjustment = (TORQUE_Kp_Override * torqueError) +
-        (TORQUE_Ki_Override * _torqueErrorAccumulator) +
-        (TORQUE_Kd_Override * torqueErrorDerivative);
-
-    // Calculate target feed rate
-    float targetFeedRate = _currentFeedRate + feedAdjustment * dt;
-    targetFeedRate = (targetFeedRate < _minFeedRate) ? _minFeedRate :
-        (targetFeedRate > _maxFeedRate) ? _maxFeedRate : targetFeedRate;
-
-    // Smoothly transition to target feed rate
-    float rateOfChange = 15.0f; // Higher = faster response (adjust as needed)
-    float previousFeedRate = _currentFeedRate;
-    _currentFeedRate += (targetFeedRate - _currentFeedRate) * min(1.0f, dt * rateOfChange);
-
-    // More frequent updates with smaller threshold
-    static uint32_t lastVelocityUpdateTime = 0;
-    bool significantChange = fabs(_currentFeedRate - previousFeedRate) > 0.002f; // 0.2% threshold
-    bool timeToUpdate = (now - lastVelocityUpdateTime) > 20; // 20ms interval (50Hz)
-
-    if (significantChange || timeToUpdate) {
-        lastVelocityUpdateTime = now;
-
-        float direction = (_targetPos > _currentPos) ? 1.0f : -1.0f;
-        int32_t velocitySteps = static_cast<int32_t>(direction * _currentFeedRate * MAX_VELOCITY);
-
-        // Update velocity without stopping
-        bool result = _motor->MoveVelocity(velocitySteps);
-
-        ClearCore::ConnectorUsb.Send("[Y-Axis] Feed rate updated: ");
-        ClearCore::ConnectorUsb.Send(_currentFeedRate * 100.0f, 1);
-        ClearCore::ConnectorUsb.Send("%, change: ");
-        ClearCore::ConnectorUsb.Send((_currentFeedRate - previousFeedRate) * 100.0f, 2);
-        ClearCore::ConnectorUsb.Send("%, error: ");
-        ClearCore::ConnectorUsb.Send(torqueError, 2);
-        ClearCore::ConnectorUsb.SendLine(result ? "" : " (FAILED)");
-    }
-
-    // Regular logging
-    static uint32_t lastLogTime = 0;
-    if (now - lastLogTime > 250) {
-        lastLogTime = now;
-        ClearCore::ConnectorUsb.Send("[Y-Axis] Torque: ");
-        ClearCore::ConnectorUsb.Send(_torquePct, 1);
-        ClearCore::ConnectorUsb.Send("%, Target: ");
-        ClearCore::ConnectorUsb.Send(_torqueTarget, 1);
-        ClearCore::ConnectorUsb.Send("%, Feed rate: ");
-        ClearCore::ConnectorUsb.Send(_currentFeedRate * 100.0f, 1);
-        ClearCore::ConnectorUsb.SendLine("%");
-    }
+float YAxis::DebugGetTorquePercent() const {
+    return _dynamicFeed->getTorquePercent();
 }
 
-
+bool YAxis::DebugIsInTorqueControlFeed() const {
+    return _dynamicFeed->isActive();
+}
 
 bool YAxis::IsMoving() const { return !_motor->StepsComplete(); }
 bool YAxis::IsHomed()  const { return _isHomed; }

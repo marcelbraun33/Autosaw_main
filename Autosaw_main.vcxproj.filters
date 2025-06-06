@@ -110,6 +110,9 @@
       <Filter>Source Files\Core</Filter>
     </ClCompile>
     <ClCompile Include="EncoderPositionTracker.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="DynamicFeed.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -177,12 +180,6 @@
     <ClInclude Include="Spindle.h">
       <Filter>Header Files\Motion</Filter>
     </ClInclude>
-    <ClInclude Include="YAxis.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ZAxis.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="HomingScreen.h">
       <Filter>Header Files\Screens</Filter>
     </ClInclude>
@@ -192,10 +189,19 @@
     <ClInclude Include="HomingHelper.h">
       <Filter>Header Files\Core</Filter>
     </ClInclude>
+    <ClInclude Include="YAxis.h">
+      <Filter>Header Files\Motion</Filter>
+    </ClInclude>
+    <ClInclude Include="ZAxis.h">
+      <Filter>Header Files\Motion</Filter>
+    </ClInclude>
     <ClInclude Include="CutData.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Core</Filter>
     </ClInclude>
     <ClInclude Include="EncoderPositionTracker.h">
+      <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicFeed.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
