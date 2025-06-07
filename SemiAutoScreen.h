@@ -1,5 +1,4 @@
 #pragma once
-// No change needed to SemiAutoScreen.h - it already has the FeedHoldManager instance
 #include "Screen.h"
 #include "cutData.h"
 #include "FeedHoldManager.h" // Add this include
@@ -10,7 +9,8 @@ enum SemiAutoScreenState {
     STATE_READY = 0,
     STATE_CUTTING = 1,
     STATE_PAUSED = 2,
-    STATE_ADJUSTING_PRESSURE = 3  // New state for pressure adjustment
+    STATE_ADJUSTING_PRESSURE = 3,
+    STATE_RETURNING = 4  // New state for returning to start position
 };
 
 class SemiAutoScreen : public Screen {
@@ -32,9 +32,13 @@ private:
     void exitFeedHold();
     void adjustCutPressure();      // New method to handle cut pressure adjustment
 
+    // Helper method for button state management
+    void updateButtonState(uint16_t buttonId, bool state, const char* logMessage = nullptr, uint16_t delayMs = 20);
+
     ScreenManager& _mgr;
     SemiAutoScreenState _currentState = STATE_READY;
     float _tempCutPressure = 70.0f;   // Temporary cut pressure value for MPG adjustment
+    bool _isReturningToStart = false; // Flag to track return motion
 
     // Constants for cut pressure adjustment
     static constexpr float CUT_PRESSURE_INCREMENT = 1.0f;
