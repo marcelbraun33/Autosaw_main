@@ -90,6 +90,10 @@ bool DynamicFeed::update(float currentPos) {
         }
         break;
     }
+
+    case State::Paused:
+        // Do nothing while paused
+        break;
     }
     return false;
 }
@@ -241,4 +245,38 @@ void DynamicFeed::startRetract() {
 void DynamicFeed::stopAll() {
     _motor->MoveStopDecel();
     _state = State::Idle;
+}
+
+void DynamicFeed::pause() {
+    if (_state == State::Feeding) {
+        // Store feed direction before pausing (1 for forward, -1 for reverse)
+        _feedDirection = (_targetPos > _startPos) ? 1.0f : -1.0f;
+        
+        // Save the previous state and enter paused state
+        _state = State::Paused;
+        
+        ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Feed paused");
+    }
+}
+
+void DynamicFeed::resume() {
+    if (_state == State::Paused) {
+        // Return to feeding state
+        _state = State::Feeding;
+        
+        // Resume velocity using stored direction and feed rate
+        int32_t velocitySteps = static_cast<int32_t>(_feedDirection * _currentFeedRate * MAX_VELOCITY);
+        _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * _currentFeedRate));
+        _motor->MoveVelocity(velocitySteps);
+        
+        _lastTorqueUpdateTime = ClearCore::TimingMgr.Milliseconds();
+        
+        ClearCore::ConnectorUsb.Send("[DynamicFeed] Feed resumed at ");
+        ClearCore::ConnectorUsb.Send(_currentFeedRate * 100.0f, 1);
+        ClearCore::ConnectorUsb.SendLine("% feed rate");
+    }
+}
+
+bool DynamicFeed::isPaused() const {
+    return _state == State::Paused;
 }

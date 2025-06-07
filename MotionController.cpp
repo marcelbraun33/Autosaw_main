@@ -217,6 +217,7 @@ MotionController::MotionStatus MotionController::getStatus() const {
     s.zHomed = zAxis.IsHomed();
     return s;
 }
+
 // Add these methods to MotionController.cpp after existing code
 
 bool MotionController::startTorqueControlledFeed(AxisId axis, float targetPosition, float initialVelocityScale) {
@@ -254,7 +255,36 @@ void MotionController::abortTorqueControlledFeed(AxisId axis) {
     }
 }
 
-YAxis &MotionController::YAxisInstance() {
+YAxis& MotionController::YAxisInstance() {
     return yAxis;
 }
 
+// --- New Methods for Pause and Resume Torque-Controlled Feed ---
+
+void MotionController::pauseTorqueControlledFeed(int axis) {
+    if (axis == AXIS_Y) {
+        YAxisInstance().PauseTorqueControlledFeed();
+    }
+    // Add similar logic for other axes if needed
+}
+
+void MotionController::resumeTorqueControlledFeed(int axis) {
+    if (axis == AXIS_Y) {
+        YAxisInstance().ResumeTorqueControlledFeed();
+    }
+    // Add similar logic for other axes if needed
+}
+
+void MotionController::abortTorqueControlledFeed(int axis) {
+    if (axis == AXIS_Y) {
+        YAxisInstance().AbortTorqueControlledFeed();
+    }
+    // Add similar logic for other axes if needed
+}
+
+void MotionController::moveTo(int axis, float position, float velocityScale) {
+    if (axis == AXIS_Y) {
+        YAxisInstance().MoveTo(position, velocityScale);
+    }
+    // Add similar logic for other axes if needed
+}

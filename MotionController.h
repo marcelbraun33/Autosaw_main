@@ -73,6 +73,12 @@ public:
     /// Abort a torque-controlled feed operation
     void abortTorqueControlledFeed(AxisId axis);
 
+    // Ensure these methods are public and implemented:
+    void pauseTorqueControlledFeed(int axis);
+    void resumeTorqueControlledFeed(int axis);
+    void abortTorqueControlledFeed(int axis);
+    void moveTo(int axis, float position, float velocityScale = 1.0f);
+
     //--- Emergency ---
     void EmergencyStop();
 

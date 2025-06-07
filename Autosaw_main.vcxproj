@@ -86,6 +86,7 @@
     <ClCompile Include="DynamicFeed.cpp" />
     <ClCompile Include="EncoderPositionTracker.cpp" />
     <ClCompile Include="EStopManager.cpp" />
+    <ClCompile Include="FeedHoldManager.cpp" />
     <ClCompile Include="FileManager.cpp" />
     <ClCompile Include="HomingHelper.cpp" />
     <ClCompile Include="HomingScreen.cpp" />
@@ -125,6 +126,7 @@
     <ClInclude Include="DynamicFeed.h" />
     <ClInclude Include="EncoderPositionTracker.h" />
     <ClInclude Include="EStopManager.h" />
+    <ClInclude Include="FeedHoldManager.h" />
     <ClInclude Include="FileManager.h" />
     <ClInclude Include="HomingHelper.h" />
     <ClInclude Include="HomingScreen.h" />

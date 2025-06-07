@@ -6,6 +6,9 @@ AutoCutScreen::AutoCutScreen(ScreenManager& mgr) : _mgr(mgr) {}
 void AutoCutScreen::onShow() {
     // Example: auto& cutData = _mgr.GetCutData();
     // Initialize auto-cut state here
+    
+    // Reset the feed hold manager when showing the screen
+    _feedHoldManager.reset();
 }
 
 void AutoCutScreen::onHide() {
@@ -17,13 +20,16 @@ void AutoCutScreen::handleEvent(const genieFrame& e) {
 }
 
 void AutoCutScreen::pauseCycle() {
-    // Use auto& cutData = _mgr.GetCutData(); if you need shared job/cut data
+    // Delegate to FeedHoldManager for pause/resume logic
+    _feedHoldManager.toggleFeedHold();
 }
 
 void AutoCutScreen::resumeCycle() {
-    // Use auto& cutData = _mgr.GetCutData(); if you need shared job/cut data
+    // Call toggleFeedHold() again to resume
+    _feedHoldManager.toggleFeedHold();
 }
 
 void AutoCutScreen::cancelCycle() {
-    // Use auto& cutData = _mgr.GetCutData(); if you need shared job/cut data
+    // Delegate to FeedHoldManager for abort/return logic
+    _feedHoldManager.exitFeedHold();
 }

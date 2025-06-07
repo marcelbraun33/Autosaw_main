@@ -52,12 +52,22 @@ public:
 
     // Get the rapid (retract) velocity scale
     float getRapidVelocityScale() const;
+    
+    // Pause the active feed operation
+    void pause();
+    
+    // Resume a paused feed operation
+    void resume();
+    
+    // Check if feed is currently paused
+    bool isPaused() const;
 
 private:
     enum class State {
         Idle,
         Feeding,
-        Retracting
+        Retracting,
+        Paused    // Add this state for feed hold support
     };
 
     YAxis* _owner;
@@ -72,6 +82,7 @@ private:
     float _maxFeedRate = 1.0f;
     float _minFeedRate = 0.005f;
     float _rapidFeedRate = 1.0f; // Default rapid (retract) feed rate
+    float _feedDirection = 1.0f; // Direction of feed (1.0 for forward, -1.0 for reverse)
 
     // Torque control parameters
     float _torqueTarget = 10.0f;

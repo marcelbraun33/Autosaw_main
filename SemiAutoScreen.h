@@ -1,17 +1,15 @@
-// Updated SemiAutoScreen.h
-// ...existing code...
-// No changes needed here for this update.
-// ...existing code...
 #pragma once
+// No change needed to SemiAutoScreen.h - it already has the FeedHoldManager instance
 #include "Screen.h"
 #include "cutData.h"
+#include "FeedHoldManager.h" // Add this include
 class ScreenManager;
 
 // Define screen states
 enum SemiAutoScreenState {
     STATE_READY = 0,
     STATE_CUTTING = 1,
-    STATE_FEED_HOLD = 2,
+    STATE_PAUSED = 2,
     STATE_ADJUSTING_PRESSURE = 3  // New state for pressure adjustment
 };
 
@@ -42,6 +40,8 @@ private:
     static constexpr float CUT_PRESSURE_INCREMENT = 1.0f;
     static constexpr float MIN_CUT_PRESSURE = 1.0f;  // Changed from 20.0f to 1.0f
     static constexpr float MAX_CUT_PRESSURE = 100.0f;
+
+    FeedHoldManager _feedHoldManager; // FeedHoldManager instance
 
 protected:
     // Optionally, store the last thickness value for display

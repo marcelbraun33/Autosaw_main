@@ -91,6 +91,29 @@ bool YAxis::StartHoming() {
     return ok;
 }
 
+void YAxis::PauseTorqueControlledFeed() {
+    if (_dynamicFeed->isActive()) {
+        // Store current position and feed rate, then pause the feed
+        ClearCore::ConnectorUsb.SendLine("[YAxis] Pausing torque-controlled feed");
+        
+        // Tell the dynamic feed controller to pause
+        _dynamicFeed->pause();
+        
+        // Tell the motor to stop with controlled deceleration
+        _motor->MoveStopDecel();
+    }
+}
+
+void YAxis::ResumeTorqueControlledFeed() {
+    if (_dynamicFeed->isActive() && _dynamicFeed->isPaused()) {
+        // Resume the feed using the stored feed rate
+        ClearCore::ConnectorUsb.SendLine("[YAxis] Resuming torque-controlled feed");
+        
+        // Tell the dynamic feed controller to resume (it will restore the feed rate and direction)
+        _dynamicFeed->resume();
+    }
+}
+
 void YAxis::Update() {
     if (!_isSetup)
         return;
@@ -241,6 +264,7 @@ void YAxis::AbortTorqueControlledFeed() {
         Stop();
     }
 }
+
 
 float YAxis::DebugGetCurrentFeedRate() const {
     return _dynamicFeed->getCurrentFeedRate();

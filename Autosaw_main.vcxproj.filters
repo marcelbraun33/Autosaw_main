@@ -112,8 +112,11 @@
     <ClCompile Include="EncoderPositionTracker.cpp">
       <Filter>Source Files\Core</Filter>
     </ClCompile>
+    <ClCompile Include="FeedHoldManager.cpp">
+      <Filter>Source Files\Motion</Filter>
+    </ClCompile>
     <ClCompile Include="DynamicFeed.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Motion</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -201,10 +204,13 @@
     <ClInclude Include="EncoderPositionTracker.h">
       <Filter>Header Files\Core</Filter>
     </ClInclude>
-    <ClInclude Include="DynamicFeed.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="JogUtilities.h">
+      <Filter>Header Files\Motion</Filter>
+    </ClInclude>
+    <ClInclude Include="FeedHoldManager.h">
+      <Filter>Header Files\Motion</Filter>
+    </ClInclude>
+    <ClInclude Include="DynamicFeed.h">
       <Filter>Header Files\Motion</Filter>
     </ClInclude>
   </ItemGroup>

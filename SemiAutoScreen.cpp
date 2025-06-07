@@ -14,6 +14,9 @@
 
 extern Genie genie;
 
+// NOTE: Ensure STATE_PAUSED is defined in your header file (e.g., in your SemiAutoScreenState enum)
+// enum { STATE_READY, STATE_CUTTING, STATE_PAUSED, STATE_ADJUSTING_PRESSURE };
+
 SemiAutoScreen::SemiAutoScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
 void SemiAutoScreen::onShow() {
@@ -56,7 +59,6 @@ void SemiAutoScreen::onHide() {
     if (_currentState == STATE_CUTTING) {
         MotionController::Instance().abortTorqueControlledFeed(AXIS_Y);
     }
-
     // If adjusting cut pressure, exit that mode
     if (_currentState == STATE_ADJUSTING_PRESSURE) {
         MPGJogManager::Instance().setEnabled(false);
@@ -75,6 +77,13 @@ void SemiAutoScreen::onHide() {
 void SemiAutoScreen::startFeedToStop() {
     auto& motion = MotionController::Instance();
     auto& cutData = _mgr.GetCutData();
+
+    // Store the current Y position as the feed start position BEFORE any movement
+    float startPos = motion.getAbsoluteAxisPosition(AXIS_Y);
+    _feedHoldManager.setStartPosition(startPos);
+
+    ClearCore::ConnectorUsb.Send("[SemiAuto] Setting initial feed start position: ");
+    ClearCore::ConnectorUsb.SendLine(startPos);
 
     // Get settings (using correct settings() method)
     auto& settings = SettingsManager::Instance().settings();
@@ -111,6 +120,7 @@ void SemiAutoScreen::startFeedToStop() {
         genie.WriteObject(GENIE_OBJ_LED, LED_READY, 0); // Turn off ready LED
         genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_TO_STOP, 1); // Highlight feed button
         genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_HOLD, 0); // Reset feed hold button
+        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_EXIT_FEED_HOLD, 0); // Hide exit button initially
 
         // Reset the cut pressure adjustment button
         genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_ADJUST_CUT_PRESSURE, 0);
@@ -124,29 +134,51 @@ void SemiAutoScreen::startFeedToStop() {
     }
 }
 
-
 void SemiAutoScreen::feedHold() {
-    if (_currentState == STATE_CUTTING) {
-        // Abort the torque controlled feed
-        MotionController::Instance().abortTorqueControlledFeed(AXIS_Y);
-        _currentState = STATE_FEED_HOLD;
+    // First, ensure the exit button is visible BEFORE toggling pause state
+    // This helps prevent the red X issue by setting button state early
+    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_EXIT_FEED_HOLD, 1);
+    delay(20);  // Small delay to let UI settle
 
-        // Update UI
-        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_HOLD, 1); // Highlight feed hold button
-        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_TO_STOP, 0); // Reset feed button
-        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_EXIT_FEED_HOLD, 1); // Show exit button
+    // Delegate to FeedHoldManager for pause/resume logic
+    _feedHoldManager.toggleFeedHold();
+
+    // Update UI based on paused state
+    if (_feedHoldManager.isPaused()) {
+        _currentState = STATE_PAUSED;
+
+        // Set feed hold button active first
+        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_HOLD, 1);
+
+        // Make another attempt at ensuring exit button is visible
+        delay(20); // Small delay for UI stability
+        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_EXIT_FEED_HOLD, 1);
+
+        ClearCore::ConnectorUsb.SendLine("[SemiAuto] Feed paused");
+    }
+    else {
+        _currentState = STATE_CUTTING;
+        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_HOLD, 0);
+
+        ClearCore::ConnectorUsb.SendLine("[SemiAuto] Feed resumed");
     }
 }
 
 void SemiAutoScreen::exitFeedHold() {
-    if (_currentState == STATE_FEED_HOLD) {
-        _currentState = STATE_READY;
+    // Log the start position for verification
+    float returnPos = _feedHoldManager.getStartPosition();
+    ClearCore::ConnectorUsb.Send("[SemiAuto] Exit feed hold, returning to position: ");
+    ClearCore::ConnectorUsb.SendLine(returnPos);
 
-        // Update UI
-        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_HOLD, 0); // Reset feed hold button
-        genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_EXIT_FEED_HOLD, 0); // Hide exit button
-        genie.WriteObject(GENIE_OBJ_LED, LED_READY, 1); // Turn on ready LED
-    }
+    // Delegate to FeedHoldManager for abort/return logic
+    _feedHoldManager.exitFeedHold();
+
+    // Update UI to reflect ready state - ENSURE FEED_TO_STOP IS RESET!
+    _currentState = STATE_READY;
+    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_TO_STOP, 0); // Reset feed button - important fix!
+    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_HOLD, 0);   // Reset feed hold button
+    genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_EXIT_FEED_HOLD, 0); // Hide exit button
+    genie.WriteObject(GENIE_OBJ_LED, LED_READY, 1); // Turn on ready LED
 }
 
 void SemiAutoScreen::adjustCutPressure() {
@@ -178,21 +210,20 @@ void SemiAutoScreen::adjustCutPressure() {
         // Enter cut pressure adjustment mode
         _currentState = STATE_ADJUSTING_PRESSURE;
 
-        // Get current setting
 #ifdef SETTINGS_HAS_CUT_PRESSURE
         _tempCutPressure = SettingsManager::Instance().settings().cutPressure;
 #else
         _tempCutPressure = 70.0f; // Default
 #endif
 
-        // Update UI
+        // Update UI: highlight adjustment button and turn off ready LED
         genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_ADJUST_CUT_PRESSURE, 1);
         genie.WriteObject(GENIE_OBJ_LED, LED_READY, 0);
-        
-        // Make sure display shows current value (scaled by 10 for display)
+
+        // Update display to show current value (scaled by 10 for display)
         genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
             static_cast<uint16_t>(_tempCutPressure * 10.0f));
-        
+
         // Reset encoder tracking for clean start
         UIInputManager::Instance().resetRaw();
 
@@ -215,8 +246,6 @@ void SemiAutoScreen::advanceIncrement() {
     }
 }
 
-
-
 void SemiAutoScreen::update() {
     auto& motion = MotionController::Instance();
 
@@ -226,7 +255,7 @@ void SemiAutoScreen::update() {
 
     // Get access to CutData
     auto& cutData = _mgr.GetCutData();
-    
+
     // Update thickness display if it has changed
     if (m_lastThickness != cutData.thickness) {
         UpdateThicknessLed(cutData.thickness);
@@ -235,7 +264,7 @@ void SemiAutoScreen::update() {
     // --- Distance to Go: Show remaining distance to cut end point (counts down to zero) ---
     float currentPos = motion.getAbsoluteAxisPosition(AXIS_Y);
     float distanceToGo = cutData.cutEndPoint - currentPos;
-    if (distanceToGo < 0.0f) distanceToGo = 0.0f; // Clamp to zero if past endpoint
+    if (distanceToGo < 0.0f) distanceToGo = 0.0f; // Clamp at zero if past endpoint
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F2,
         static_cast<uint16_t>(distanceToGo * 1000));
 
@@ -245,95 +274,81 @@ void SemiAutoScreen::update() {
         float currentFeedRate = MotionController::Instance().YAxisInstance().DebugGetCurrentFeedRate();
         genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_FEED_OVERRIDE,
             static_cast<uint16_t>(currentFeedRate * 100.0f)); // Show as percent
-    } else {
+    }
+    else {
         // Not in torque feed: clear or show zero
         genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_FEED_OVERRIDE, 0);
     }
 
-    // If in cutting state, update torque display and check for completion
-    if (_currentState == STATE_CUTTING) {
-        // Get current torque and target torque
+    // If in cutting state or paused, update torque display
+    if (_currentState == STATE_CUTTING || _currentState == STATE_PAUSED) {
         float torque = motion.getTorquePercent(AXIS_Y);
         float targetTorque = motion.getTorqueTarget(AXIS_Y);
-
-        // Calculate torque percentage relative to target (0-125%)
         float torquePercentage = (torque / targetTorque) * 100.0f;
 
-        // Clamp the percentage to allow values up to 125% for the red zone
         if (torquePercentage > 125.0f) torquePercentage = 125.0f;
         if (torquePercentage < 0.0f) torquePercentage = 0.0f;
 
-        // Update gauge to show percentage of torque target
         uint16_t gaugeValue = static_cast<uint16_t>(torquePercentage);
-
-        // Gauge value will now go up to 125% showing the red zone properly
         genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_CUT_PRESSURE, gaugeValue);
-
-        // For the digital display, always show the TARGET pressure value during cutting
-        // This provides a stable reference value rather than showing the fluctuating actual torque
         genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
-            static_cast<uint16_t>(targetTorque * 10.0f)); // Scale as needed
+            static_cast<uint16_t>(targetTorque * 10.0f)); // Always show target pressure
 
         // Check if feed completed
         if (!motion.isInTorqueControlledFeed(AXIS_Y) && !motion.isAxisMoving(AXIS_Y)) {
-            // Feed completed
             _currentState = STATE_READY;
             genie.WriteObject(GENIE_OBJ_LED, LED_READY, 1); // Turn on ready LED
             genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_FEED_TO_STOP, 0); // Reset feed button
+            genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_EXIT_FEED_HOLD, 0); // Hide exit button
 
-            // Reset display to show current pressure setting from settings
 #ifdef SETTINGS_HAS_CUT_PRESSURE
             float cutPressure = SettingsManager::Instance().settings().cutPressure;
 #else
             float cutPressure = 70.0f;
 #endif
             genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
-                static_cast<uint16_t>(cutPressure * 10.0f)); // Scale as needed
+                static_cast<uint16_t>(cutPressure * 10.0f));
         }
     }
-    // Rest of your existing code for adjusting pressure mode...
 
-  
-    // If in adjust pressure mode, check for encoder movement directly
+    // Special handling for STATE_PAUSED - ensure exit button stays visible
+    if (_currentState == STATE_PAUSED) {
+        static uint32_t lastExitButtonCheck = 0;
+        uint32_t now = ClearCore::TimingMgr.Milliseconds();
+
+        // Periodically check and refresh exit button to prevent red X
+        if (now - lastExitButtonCheck > 250) { // Four times per second for more reliability
+            lastExitButtonCheck = now;
+            // Force exit button to remain visible
+            genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_EXIT_FEED_HOLD, 1);
+        }
+    }
+
+    // Else if in adjusting pressure mode, check for encoder movement directly
     else if (_currentState == STATE_ADJUSTING_PRESSURE) {
-        // Get the current encoder position directly from the hardware
         static int32_t lastEncoderPos = ClearCore::EncoderIn.Position();
         int32_t currentEncoderPos = ClearCore::EncoderIn.Position();
-
-        // Calculate delta in encoder counts
         int32_t delta = currentEncoderPos - lastEncoderPos;
 
-        // Only process significant changes to avoid noise
         if (abs(delta) >= ENCODER_COUNTS_PER_CLICK) {
-            // Update the last position for next time
             lastEncoderPos = currentEncoderPos;
-
-            // Determine direction
             float changeAmount = (delta > 0) ? CUT_PRESSURE_INCREMENT : -CUT_PRESSURE_INCREMENT;
-
-            // Update the cut pressure value
             _tempCutPressure += changeAmount;
 
-            // Clamp to valid range
             if (_tempCutPressure < MIN_CUT_PRESSURE) _tempCutPressure = MIN_CUT_PRESSURE;
             if (_tempCutPressure > MAX_CUT_PRESSURE) _tempCutPressure = MAX_CUT_PRESSURE;
 
-            // Debug output
             ClearCore::ConnectorUsb.Send("[SemiAuto] Cut pressure adjusted to: ");
             ClearCore::ConnectorUsb.SendLine(_tempCutPressure);
 
-            // Update display
             genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
                 static_cast<uint16_t>(_tempCutPressure * 10.0f));
 
-            // Save the value to settings immediately
 #ifdef SETTINGS_HAS_CUT_PRESSURE
             auto& settings = SettingsManager::Instance().settings();
             settings.cutPressure = _tempCutPressure;
-            // Don't call save() every update as it might cause excessive EEPROM writes
 #endif
 
-            // If cutting is active, update the torque target immediately for real-time adjustment
             if (motion.isInTorqueControlledFeed(AXIS_Y)) {
                 motion.setTorqueTarget(AXIS_Y, _tempCutPressure);
             }
@@ -356,87 +371,72 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
             break;
 
         case WINBUTTON_FEED_HOLD:
-            if (_currentState == STATE_CUTTING) {
+            if (_currentState == STATE_CUTTING || _currentState == STATE_PAUSED) {
                 feedHold();
             }
             break;
 
         case WINBUTTON_EXIT_FEED_HOLD:
-            if (_currentState == STATE_FEED_HOLD) {
+            // Automatically use FeedHoldManager's state rather than UI state
+            if (_feedHoldManager.isPaused()) {
                 exitFeedHold();
             }
             break;
 
         case WINBUTTON_ADJUST_CUT_PRESSURE:
-            // Toggle cut pressure adjustment mode
             if (_currentState == STATE_READY || _currentState == STATE_ADJUSTING_PRESSURE) {
                 adjustCutPressure();
             }
             break;
 
         case WINBUTTON_SPINDLE_ON:
-            // Toggle spindle
             if (MotionController::Instance().IsSpindleRunning()) {
                 MotionController::Instance().StopSpindle();
                 genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SPINDLE_ON, 0);
             }
             else {
-                // Get RPM from settings with default
-                float rpm = 3000.0f; // Default RPM
+                float rpm = 3000.0f;
 #ifdef SETTINGS_HAS_SPINDLE_RPM
                 rpm = SettingsManager::Instance().settings().spindleRPM;
 #else
-                // Fall back to defaultRPM if available
                 rpm = SettingsManager::Instance().settings().defaultRPM;
 #endif
-
                 MotionController::Instance().StartSpindle(rpm);
                 genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SPINDLE_ON, 1);
             }
             break;
 
         case WINBUTTON_INC_PLUS_F2:
-            // Use JogUtilities::Increment instead of direct motion controller calls
             JogUtilities::Increment(_mgr.GetCutData(), AXIS_X);
             break;
 
         case WINBUTTON_INC_MINUS_F2:
-            // Use JogUtilities::Decrement when not in pressure adjustment mode
             if (_currentState == STATE_ADJUSTING_PRESSURE) {
                 _tempCutPressure -= CUT_PRESSURE_INCREMENT;
                 if (_tempCutPressure < MIN_CUT_PRESSURE) {
                     _tempCutPressure = MIN_CUT_PRESSURE;
                 }
-
-                // Update display
                 genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
-                    static_cast<uint16_t>(_tempCutPressure * 10.0f)); // Scale for display
-
-                // Save to settings
+                    static_cast<uint16_t>(_tempCutPressure * 10.0f));
 #ifdef SETTINGS_HAS_CUT_PRESSURE
                 SettingsManager::Instance().settings().cutPressure = _tempCutPressure;
 #endif
-            } else {
-                // Use the JogUtilities function for decrement when not adjusting pressure
+            }
+            else {
                 JogUtilities::Decrement(_mgr.GetCutData(), AXIS_X);
             }
             break;
 
         case WINBUTTON_SETTINGS_SEMI:
-            // Switch to settings screen
             ScreenManager::Instance().ShowSettings();
             break;
 
         case WINBUTTON_HOME_F2:
-            // Use JogUtilities::GoToZero instead of direct homing
             JogUtilities::GoToZero(_mgr.GetCutData(), AXIS_X);
             break;
 
         case WINBUTTON_STOCK_ZERO:
-            // Use JogUtilities::GoToZero to go to stock zero position
             JogUtilities::GoToZero(_mgr.GetCutData(), AXIS_X);
-
-            // Visual feedback for button press
             showButtonSafe(WINBUTTON_STOCK_ZERO, 1);
             delay(200);
             showButtonSafe(WINBUTTON_STOCK_ZERO, 0);
@@ -448,13 +448,6 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
 
 void SemiAutoScreen::UpdateThicknessLed(float thickness) {
     m_lastThickness = thickness;
-    // Scale thickness to match display convention (e.g., *1000)
     int32_t scaled = static_cast<int32_t>(round(thickness * 1000.0f));
-    
-    // Update the LEDDIGITS_THICKNESS_F2 (ID 28) with thickness value
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_THICKNESS_F2, static_cast<uint16_t>(scaled));
 }
-
-
-
-

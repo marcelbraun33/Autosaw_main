@@ -49,6 +49,10 @@ public:
     float DebugGetTorquePercent() const;
     bool DebugIsInTorqueControlFeed() const;
 
+    // Add these methods for feed hold integration
+    void PauseTorqueControlledFeed();
+    void ResumeTorqueControlledFeed();
+
 private:
     // Internal state
     bool    _isSetup = false;
