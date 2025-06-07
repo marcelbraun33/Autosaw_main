@@ -337,9 +337,25 @@ void SemiAutoScreen::update() {
             genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
                 static_cast<uint16_t>(cutPressure * 10.0f));
         }
+
+        // Ensure Feed to Stop button maintains proper state during active cycles
+        static uint32_t lastFeedButtonCheck = 0;
+        uint32_t now = ClearCore::TimingMgr.Milliseconds();
+
+        // Periodically check button state (every 500ms is enough)
+        if (now - lastFeedButtonCheck > 500) {
+            lastFeedButtonCheck = now;
+
+            // Force Feed to Stop button to stay in active state during cycle
+            updateButtonState(WINBUTTON_FEED_TO_STOP, true, nullptr, 0);
+
+            // Also enforce feed hold button state based on current pause status
+            bool isPaused = _feedHoldManager.isPaused();
+            updateButtonState(WINBUTTON_FEED_HOLD, isPaused, nullptr, 0);
+        }
     }
 
-    // Special handling for STATE_PAUSED - ensure exit button stays visible
+    // Special handling for STATE_PAUSED - ensure exit button stays visible in correct state
     if (_currentState == STATE_PAUSED && !_isReturningToStart) {
         static uint32_t lastExitButtonCheck = 0;
         uint32_t now = ClearCore::TimingMgr.Milliseconds();
@@ -350,6 +366,9 @@ void SemiAutoScreen::update() {
 
             // Keep button visible in inactive state (for latching button)
             updateButtonState(WINBUTTON_EXIT_FEED_HOLD, false, nullptr, 0);
+
+            // Also ensure feed hold button is in active state
+            updateButtonState(WINBUTTON_FEED_HOLD, true, nullptr, 0);
         }
     }
 
@@ -397,18 +416,31 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
             if (_currentState == STATE_READY) {
                 startFeedToStop();
             }
+            else if (_currentState == STATE_CUTTING || _currentState == STATE_PAUSED || _currentState == STATE_RETURNING) {
+                // If button is pressed during active cycle, force it back to active state
+                updateButtonState(WINBUTTON_FEED_TO_STOP, true, "[SemiAuto] Feed cycle in progress", 0);
+            }
             break;
 
         case WINBUTTON_FEED_HOLD:
             if (_currentState == STATE_CUTTING || _currentState == STATE_PAUSED) {
-                feedHold();
+                feedHold(); // Normal operation
+            }
+            else {
+                // If button is pressed when not in a cutting state, force it back to its proper state
+                bool shouldBeActive = (_currentState == STATE_PAUSED);
+                updateButtonState(WINBUTTON_FEED_HOLD, shouldBeActive, "[SemiAuto] Feed hold not available", 0);
             }
             break;
 
         case WINBUTTON_EXIT_FEED_HOLD:
-            // Only process event if we're paused and not already returning
             if (_feedHoldManager.isPaused() && !_isReturningToStart) {
-                exitFeedHold();
+                exitFeedHold(); // Normal operation
+            }
+            else {
+                // If button is pressed when not paused or already returning, force back to proper state
+                bool shouldBeActive = _isReturningToStart;
+                updateButtonState(WINBUTTON_EXIT_FEED_HOLD, shouldBeActive, "[SemiAuto] Exit feed not available", 0);
             }
             break;
 

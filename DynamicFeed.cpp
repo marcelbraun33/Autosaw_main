@@ -4,16 +4,51 @@
 #include <ClearCore.h>
 
 static constexpr float MAX_VELOCITY = 10000.0f;  // steps/s
+static constexpr float MAX_ACCELERATION = 100000.0f; // steps/s^2 - Define it here since it's not found
 
 DynamicFeed::DynamicFeed(YAxis* owner, float stepsPerInch, MotorDriver* motor)
     : _owner(owner)
     , _stepsPerInch(stepsPerInch)
     , _motor(motor)
 {
+    // Store original acceleration value - use our defined constant
+    _originalAccelValue = MAX_ACCELERATION;
 }
 
 DynamicFeed::~DynamicFeed() {
     // Nothing to clean up
+}
+
+void DynamicFeed::setAccelerationFactor(float factor) {
+    _accelFactor = (factor < 0.2f) ? 0.2f :
+        (factor > 2.0f) ? 2.0f : factor;
+
+    ClearCore::ConnectorUsb.Send("[DynamicFeed] Acceleration factor set to: ");
+    ClearCore::ConnectorUsb.SendLine(_accelFactor);
+}
+
+float DynamicFeed::getAccelerationFactor() const {
+    return _accelFactor;
+}
+
+void DynamicFeed::setRampingParameters(float startRampTime, float endRampTime) {
+    _startRampDuration = (startRampTime < 0.1f) ? 0.1f :
+        (startRampTime > 2.0f) ? 2.0f : startRampTime;
+    _endRampDuration = (endRampTime < 0.1f) ? 0.1f :
+        (endRampTime > 1.0f) ? 1.0f : endRampTime;
+
+    ClearCore::ConnectorUsb.Send("[DynamicFeed] Ramping parameters set: start=");
+    ClearCore::ConnectorUsb.Send(_startRampDuration);
+    ClearCore::ConnectorUsb.Send("s, end=");
+    ClearCore::ConnectorUsb.Send(_endRampDuration);
+    ClearCore::ConnectorUsb.SendLine("s");
+}
+
+void DynamicFeed::configureAccelerationProfile(float startRatio, float endRatio) {
+    _startAccelRatio = (startRatio < 0.1f) ? 0.1f :
+        (startRatio > 1.0f) ? 1.0f : startRatio;
+    _endAccelRatio = (endRatio < 0.1f) ? 0.1f :
+        (endRatio > 1.0f) ? 1.0f : endRatio;
 }
 
 bool DynamicFeed::start(float targetPosition, float initialVelocityScale) {
@@ -35,22 +70,35 @@ bool DynamicFeed::start(float targetPosition, float initialVelocityScale) {
     _targetPos = desired;
     _maxFeedRate = (initialVelocityScale > 0.01f && initialVelocityScale <= 1.0f) ?
         initialVelocityScale : 0.5f;
-    _currentFeedRate = _maxFeedRate;
+
+    // Start with lower initial feed rate for gradual ramp-up
+    _currentFeedRate = min(0.15f * _maxFeedRate, _maxFeedRate);
     _torqueErrorAccumulator = 0.0f;
     _lastTorqueUpdateTime = ClearCore::TimingMgr.Milliseconds();
+    _rampStartTime = _lastTorqueUpdateTime;
+
+    // Store original acceleration value
+    _originalAccelValue = MAX_ACCELERATION; // Using our defined constant
 
     // Start velocity move in the correct direction
     float direction = (_targetPos > _startPos) ? 1.0f : -1.0f;
-    int32_t velocitySteps = static_cast<int32_t>(direction * _currentFeedRate * _stepsPerInch);
+    _feedDirection = direction;
+
+    // Configure more gentle acceleration for startup
     _motor->EnableRequest(true);
-    _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * _currentFeedRate));
-    _motor->MoveVelocity(velocitySteps);
+    _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * _maxFeedRate));
+
+    // Reduce acceleration rate for smoother starts
+    _motor->AccelMax(static_cast<uint32_t>(_originalAccelValue * _accelFactor * _startAccelRatio));
+
+    // Start with reduced speed for initial ramp-up
+    _motor->MoveVelocity(static_cast<int32_t>(direction * _currentFeedRate * _stepsPerInch));
 
     ClearCore::ConnectorUsb.Send("[DynamicFeed] Starting torque-controlled feed to ");
     ClearCore::ConnectorUsb.Send(_targetPos);
-    ClearCore::ConnectorUsb.Send(" inches at ");
+    ClearCore::ConnectorUsb.Send(" inches with gentle ramp-up at ");
     ClearCore::ConnectorUsb.Send(_currentFeedRate * 100.0f, 0);
-    ClearCore::ConnectorUsb.Send("% speed, target torque: ");
+    ClearCore::ConnectorUsb.Send("% initial speed, target torque: ");
     ClearCore::ConnectorUsb.Send(_torqueTarget, 1);
     ClearCore::ConnectorUsb.SendLine("%");
 
@@ -58,8 +106,18 @@ bool DynamicFeed::start(float targetPosition, float initialVelocityScale) {
 }
 
 void DynamicFeed::abort() {
-    stopAll();
-    ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Operation aborted");
+    // First reduce acceleration for gentler stop
+    _motor->AccelMax(static_cast<uint32_t>(_originalAccelValue * _accelFactor * _endAccelRatio));
+
+    // Then use decelerated stop
+    _motor->MoveStopDecel();
+
+    // Restore original acceleration after a brief delay
+    Delay_ms(100);
+    _motor->AccelMax(_originalAccelValue);
+
+    _state = State::Idle;
+    ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Operation aborted with controlled deceleration");
 }
 
 bool DynamicFeed::update(float currentPos) {
@@ -68,12 +126,39 @@ bool DynamicFeed::update(float currentPos) {
         return false;
 
     case State::Feeding: {
+        // Gradually restore normal acceleration after startup ramp
+        uint32_t now = ClearCore::TimingMgr.Milliseconds();
+        if (now - _rampStartTime < _startRampDuration * 1000) {
+            // Still in startup ramp, maintain reduced acceleration
+            float progressRatio = static_cast<float>(now - _rampStartTime) / (_startRampDuration * 1000);
+            float accelRatio = _startAccelRatio + progressRatio * (1.0f - _startAccelRatio);
+            uint32_t targetAccel = static_cast<uint32_t>(_originalAccelValue * _accelFactor * accelRatio);
+
+            // Don't update too frequently - only when there's a meaningful change
+            static uint32_t lastAccelUpdate = 0;
+            if (now - lastAccelUpdate > 100) {
+                lastAccelUpdate = now;
+                _motor->AccelMax(targetAccel);
+            }
+        }
+        else {
+            // Once ramp time has passed, restore to normal acceleration with factor applied
+            _motor->AccelMax(static_cast<uint32_t>(_originalAccelValue * _accelFactor));
+        }
+
+        // Continue with normal feed rate adjustment
         adjustFeedRateBasedOnTorque();
         float direction = (_targetPos > _startPos) ? 1.0f : -1.0f;
+
         // Check if we've reached or passed the target position
         if ((direction > 0 && currentPos >= _targetPos) ||
             (direction < 0 && currentPos <= _targetPos)) {
-            ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Feed complete, starting retract");
+            ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Feed complete, preparing for smooth retract");
+
+            // Smoothly transition to stop before retracting
+            _motor->MoveStopDecel();
+            Delay_ms(200); // Wait for deceleration to complete
+
             startRetract();
         }
         break;
@@ -84,8 +169,19 @@ bool DynamicFeed::update(float currentPos) {
         // Check if we've reached or passed the start position
         if ((direction > 0 && currentPos >= _startPos) ||
             (direction < 0 && currentPos <= _startPos)) {
-            stopAll();
-            ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Retract complete, ready");
+
+            // Reduce acceleration for final approach
+            _motor->AccelMax(static_cast<uint32_t>(_originalAccelValue * _accelFactor * _endAccelRatio));
+
+            // Slow deceleration stop
+            _motor->MoveStopDecel();
+
+            // Restore original acceleration
+            Delay_ms(100);
+            _motor->AccelMax(_originalAccelValue);
+
+            _state = State::Idle;
+            ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Retract complete with smooth stop, ready");
             return true; // Entire cycle complete
         }
         break;
@@ -203,7 +299,8 @@ void DynamicFeed::adjustFeedRateBasedOnTorque() {
     targetFeedRate = (targetFeedRate < _minFeedRate) ? _minFeedRate :
         (targetFeedRate > _maxFeedRate) ? _maxFeedRate : targetFeedRate;
 
-    float rateOfChange = 15.0f;
+    // Reduced rate of change for smoother transitions (5.0 instead of 15.0)
+    float rateOfChange = 5.0f;
     float previousFeedRate = _currentFeedRate;
     _currentFeedRate += (targetFeedRate - _currentFeedRate) * min(1.0f, dt * rateOfChange);
 
@@ -215,7 +312,7 @@ void DynamicFeed::adjustFeedRateBasedOnTorque() {
         lastVelocityUpdateTime = now;
         float currentPos = static_cast<float>(_motor->PositionRefCommanded()) / _stepsPerInch;
         float direction = (_targetPos > _startPos) ? 1.0f : -1.0f;
-        int32_t velocitySteps = static_cast<int32_t>(direction * _currentFeedRate * MAX_VELOCITY);
+        int32_t velocitySteps = static_cast<int32_t>(direction * _currentFeedRate * _stepsPerInch);
         _motor->MoveVelocity(velocitySteps);
 
         ClearCore::ConnectorUsb.Send("[DynamicFeed] Feed rate updated: ");
@@ -230,20 +327,46 @@ void DynamicFeed::adjustFeedRateBasedOnTorque() {
 
 void DynamicFeed::startRetract() {
     _state = State::Retracting;
-    // Use rapid feed rate for retract
+
+    // Configure gentle acceleration for retract to avoid jerk
+    _motor->AccelMax(static_cast<uint32_t>(_originalAccelValue * _accelFactor * _startAccelRatio));
+
+    // Execute multi-step velocity ramp to avoid jerky starts
     float direction = (_startPos > _targetPos) ? 1.0f : -1.0f;
-    int32_t velocitySteps = static_cast<int32_t>(direction * _rapidFeedRate * _stepsPerInch);
     _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * _rapidFeedRate));
-    _motor->MoveVelocity(velocitySteps);
+
+    // Start at 30% speed
+    _motor->MoveVelocity(static_cast<int32_t>(direction * 0.3f * _rapidFeedRate * _stepsPerInch));
+    Delay_ms(100);
+
+    // Ramp to 60% speed 
+    _motor->MoveVelocity(static_cast<int32_t>(direction * 0.6f * _rapidFeedRate * _stepsPerInch));
+    Delay_ms(100);
+
+    // Final ramp to full retract speed
+    _motor->MoveVelocity(static_cast<int32_t>(direction * _rapidFeedRate * _stepsPerInch));
+
+    // Restore normal acceleration after starting the retract
+    Delay_ms(100);
+    _motor->AccelMax(static_cast<uint32_t>(_originalAccelValue * _accelFactor));
+
     ClearCore::ConnectorUsb.Send("[DynamicFeed] Retracting to ");
     ClearCore::ConnectorUsb.Send(_startPos);
-    ClearCore::ConnectorUsb.Send(" inches at ");
+    ClearCore::ConnectorUsb.Send(" inches with smooth acceleration at ");
     ClearCore::ConnectorUsb.Send(_rapidFeedRate * 100.0f, 0);
     ClearCore::ConnectorUsb.SendLine("% rapid speed");
 }
 
 void DynamicFeed::stopAll() {
+    // Use controlled deceleration instead of abrupt stop
+    _motor->AccelMax(static_cast<uint32_t>(_originalAccelValue * _accelFactor * _endAccelRatio));
     _motor->MoveStopDecel();
+
+    // Delay to allow for deceleration before state change
+    Delay_ms(100);
+
+    // Restore original acceleration
+    _motor->AccelMax(_originalAccelValue);
     _state = State::Idle;
 }
 
@@ -251,11 +374,17 @@ void DynamicFeed::pause() {
     if (_state == State::Feeding) {
         // Store feed direction before pausing (1 for forward, -1 for reverse)
         _feedDirection = (_targetPos > _startPos) ? 1.0f : -1.0f;
-        
+
+        // Reduce acceleration for smoother stop
+        _motor->AccelMax(static_cast<uint32_t>(_originalAccelValue * _accelFactor * _endAccelRatio));
+
+        // Stop with controlled deceleration
+        _motor->MoveStopDecel();
+
         // Save the previous state and enter paused state
         _state = State::Paused;
-        
-        ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Feed paused");
+
+        ClearCore::ConnectorUsb.SendLine("[DynamicFeed] Feed paused with gentle deceleration");
     }
 }
 
@@ -263,15 +392,28 @@ void DynamicFeed::resume() {
     if (_state == State::Paused) {
         // Return to feeding state
         _state = State::Feeding;
-        
-        // Resume velocity using stored direction and feed rate
-        int32_t velocitySteps = static_cast<int32_t>(_feedDirection * _currentFeedRate * MAX_VELOCITY);
-        _motor->VelMax(static_cast<uint32_t>(MAX_VELOCITY * _currentFeedRate));
-        _motor->MoveVelocity(velocitySteps);
-        
+        _rampStartTime = ClearCore::TimingMgr.Milliseconds();
+
+        // Configure gentler acceleration for resumption
+        _motor->AccelMax(static_cast<uint32_t>(_originalAccelValue * _accelFactor * _startAccelRatio));
+
+        // Start with lower speed then ramp up
+        float initialResumeRate = _currentFeedRate * 0.5f;
+
+        // Resume velocity using stored direction and gradual feed rate ramp
+        _motor->MoveVelocity(static_cast<int32_t>(_feedDirection * initialResumeRate * _stepsPerInch));
+        Delay_ms(100);
+
+        // Gradually increase to target speed
+        _motor->MoveVelocity(static_cast<int32_t>(_feedDirection * _currentFeedRate * 0.7f * _stepsPerInch));
+        Delay_ms(100);
+
+        // Full speed
+        _motor->MoveVelocity(static_cast<int32_t>(_feedDirection * _currentFeedRate * _stepsPerInch));
+
         _lastTorqueUpdateTime = ClearCore::TimingMgr.Milliseconds();
-        
-        ClearCore::ConnectorUsb.Send("[DynamicFeed] Feed resumed at ");
+
+        ClearCore::ConnectorUsb.Send("[DynamicFeed] Feed resumed with smooth acceleration at ");
         ClearCore::ConnectorUsb.Send(_currentFeedRate * 100.0f, 1);
         ClearCore::ConnectorUsb.SendLine("% feed rate");
     }
@@ -279,4 +421,26 @@ void DynamicFeed::resume() {
 
 bool DynamicFeed::isPaused() const {
     return _state == State::Paused;
+}
+
+void DynamicFeed::executeRampToVelocity(float targetVelocityScale, float rampTime) {
+    float direction = _feedDirection;
+
+    uint32_t startTime = ClearCore::TimingMgr.Milliseconds();
+    float startVelocity = 0.2f * targetVelocityScale; // Start at 20% of target
+
+    // Start with lower speed
+    _motor->MoveVelocity(static_cast<int32_t>(direction * startVelocity * _stepsPerInch));
+
+    // Ramp up in small increments
+    uint32_t steps = 5; // Number of steps in ramp
+    uint32_t stepTime = static_cast<uint32_t>((rampTime * 1000.0f) / steps);
+
+    for (uint32_t i = 1; i <= steps; i++) {
+        float ratio = static_cast<float>(i) / steps;
+        float velocity = startVelocity + (targetVelocityScale - startVelocity) * ratio;
+
+        Delay_ms(stepTime);
+        _motor->MoveVelocity(static_cast<int32_t>(direction * velocity * _stepsPerInch));
+    }
 }

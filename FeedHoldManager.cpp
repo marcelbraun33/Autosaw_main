@@ -38,11 +38,18 @@ void FeedHoldManager::exitFeedHold() {
         ClearCore::ConnectorUsb.Send("[FeedHoldManager] Exiting feed hold, returning to position: ");
         ClearCore::ConnectorUsb.SendLine(_feedStartPos);
 
+        // First make sure motion has fully stopped - use correct ClearCore delay function
+        Delay_ms(150);
+
         // Abort the torque-controlled feed
         motion.abortTorqueControlledFeed(AXIS_Y);
 
-        // Return the Y-axis to the originally stored feed start position
-        motion.moveTo(AXIS_Y, _feedStartPos, 1.0f);
+        // Small delay to ensure complete abort before starting new motion
+        Delay_ms(100);
+
+        // Use smoother return motion with reduced velocity scale (0.7f instead of 1.0f)
+        // for gentler movement back to start position
+        motion.moveTo(AXIS_Y, _feedStartPos, 0.7f);
 
         // Turn off the spindle if it is running
         if (motion.IsSpindleRunning()) {

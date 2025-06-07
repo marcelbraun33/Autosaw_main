@@ -52,15 +52,27 @@ public:
 
     // Get the rapid (retract) velocity scale
     float getRapidVelocityScale() const;
-    
+
     // Pause the active feed operation
     void pause();
-    
+
     // Resume a paused feed operation
     void resume();
-    
+
     // Check if feed is currently paused
     bool isPaused() const;
+
+    // Set acceleration factor for smoother transitions
+    void setAccelerationFactor(float factor);
+
+    // Get current acceleration factor
+    float getAccelerationFactor() const;
+
+    // Set ramping parameters for smoother transitions
+    void setRampingParameters(float startRampTime, float endRampTime);
+
+    // Configure acceleration profile (lower values make gentler transitions)
+    void configureAccelerationProfile(float startRatio, float endRatio);
 
 private:
     enum class State {
@@ -104,8 +116,18 @@ private:
     float _smoothedTorque = 0.0f;
     static constexpr uint32_t TORQUE_AVG_WINDOW_MS = 400;
 
+    // Acceleration control parameters
+    float _accelFactor = 0.7f;  // Acceleration scaling factor (lower = smoother)
+    float _startRampDuration = 0.5f; // Time in seconds for initial feed ramp-up
+    float _endRampDuration = 0.3f; // Time in seconds for end feed ramp-down
+    float _startAccelRatio = 0.5f; // Initial acceleration ratio (vs. max)
+    float _endAccelRatio = 0.6f;   // Final deceleration ratio (vs. max)
+    uint32_t _originalAccelValue = 0; // Store original acceleration value
+    uint32_t _rampStartTime = 0;      // Track ramp start time for smooth transitions
+
     // Private methods
     void adjustFeedRateBasedOnTorque();
     void startRetract();
     void stopAll();
+    void executeRampToVelocity(float targetVelocityScale, float rampTime);
 };
