@@ -63,14 +63,7 @@ void myGenieEventHandler() {
             return;
         }
 
-                                   // ─── Pendant Toggle ─────────────────────────────────────
-        case WINBUTTON_ACTIVATE_PENDANT:
-            ClearCore::ConnectorUsb.SendLine("[EV] Pendant toggle button");
-            PendantManager::Instance().SetEnabled(
-                !PendantManager::Instance().IsEnabled()
-            );
-            ScreenManager::Instance().ShowManualMode();
-            return;
+
 
             // ─── Settings Screen ────────────────────────────────────
         case WINBUTTON_SETTINGS_F5:

@@ -83,7 +83,9 @@
 #define LEDDIGITS_CUT_PRESSURE             27  // Form2 - Leddigits27
 #define LEDDIGITS_THICKNESS_F2             28  // Form2 - Leddigits28
 #define LEDDIGITS_DISTANCE_TO_GO_F2        29  // Form2 - Leddigits29
+#define LEDDIGITS_TARGET_FEEDRATE          32  // Form2 - Leddigits32
 #define LED_READY                          6   // Form2 - Led6
+
 
 // Form3 (Settings)
 #define LEDDIGITS_DIAMETER_SETTINGS        8   // Form3 - Leddigits8
@@ -159,6 +161,7 @@
 #define WINBUTTON_ADJUST_CUT_PRESSURE     41   // Form2 - Winbutton41
 #define WINBUTTON_HOME_F2                 42   // Form2 - Winbutton42 (renamed from TABLE_TO_POSITION)
 #define WINBUTTON_INC_MINUS_F2            50   // Form2 - Winbutton50
+#define WINBUTTON_ADJUST_MAX_SPEED        32   // Form2 - Winbutton32
 
 // Form3 (Settings)
 #define WINBUTTON_SET_RPM_SETTINGS        17   // Form3 - Winbutton17
@@ -189,10 +192,9 @@
 #define WINBUTTON_JOG_TO_RETRACT          49   // Form6 - Winbutton49
 
 // Form7 (Manual Mode)
-#define WINBUTTON_SPINDLE_TOGGLE_F7       31   // Form7 - Winbutton31
-#define WINBUTTON_ACTIVATE_PENDANT        32   // Form7 - Winbutton32
+//#define WINBUTTON_ACTIVATE_PENDANT        32   // Form7 - Winbutton32
 #define WINBUTTON_ACTIVATE_HOMING         33   // Form7 - Winbutton33
-// WINBUTTON_SET_RPM_F7 (34) has been removed in the new HMI
+#define WINBUTTON_SPINDLE_TOGGLE_F7       31   // Form7 - Winbutton31
 #define WINBUTTON_SETTINGS_F7             35   // Form7 - Winbutton35
 
 // Form8 (Rotary Z)

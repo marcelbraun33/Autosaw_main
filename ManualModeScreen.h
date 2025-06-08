@@ -3,6 +3,7 @@
 
 #include "Screen.h"
 #include <genieArduinoDEV.h>
+// Forward declaration
 class ScreenManager;
 
 class ManualModeScreen : public Screen {
@@ -11,9 +12,13 @@ public:
     void onHide() override;
     void handleEvent(const genieFrame& e) override;
     void update() override;
-	ManualModeScreen(ScreenManager& mgr);  
+    ManualModeScreen(ScreenManager& mgr);
+
+    // Methods for handling manual mode functionality (removed togglePendant)
+    void toggleSpindle();
+    void activateHoming();
+    void goToSettings();
+
 private:
     ScreenManager& _mgr;
 };
-
-
