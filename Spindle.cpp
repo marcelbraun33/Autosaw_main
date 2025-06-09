@@ -10,26 +10,35 @@ Spindle::Spindle() : running(false), commandedRPM(0.0f) {}
 #include "Spindle.h"
 #include "Config.h"
 
+// In Spindle.cpp, update the Setup() method:
 void Spindle::Setup() {
-    // Put both M0 & M1 into velocity mode globally (optional — but matches example)
+    // Put both M0 & M1 into velocity mode globally
     MotorMgr.MotorInputClocking(MotorManager::CLOCK_RATE_NORMAL);
     MotorMgr.MotorModeSet(
         MotorManager::MOTOR_M0M1,
         Connector::CPM_MODE_A_DIRECT_B_PWM
     );
-    -
 
-        MotorMgr.MotorModeSet(MotorManager::MOTOR_M0M1,
-        Connector::CPM_MODE_A_DIRECT_B_PWM
-    );
+    // Configure HLFB to read bipolar PWM signal for torque feedback
+    MOTOR_SPINDLE.HlfbMode(ClearCore::MotorDriver::HLFB_MODE_HAS_BIPOLAR_PWM);
 
-    // now idle the outputs
+    // Set appropriate HLFB carrier frequency (482 Hz is common for ClearPath motors)
+    MOTOR_SPINDLE.HlfbCarrier(ClearCore::MotorDriver::HLFB_CARRIER_482_HZ);
+
+    // Set active high HLFB level (ensure this matches your motor configuration)
+    MOTOR_SPINDLE.HlfbActiveLevel(true);
+
+    // Set a reasonable HLFB filter length (helps with noise)
+    MOTOR_SPINDLE.HlfbFilterLength(3);
+
+    // Now idle the outputs
     MOTOR_SPINDLE.EnableRequest(false);
     MOTOR_SPINDLE.MotorInAState(true);
     MOTOR_SPINDLE.MotorInBDuty(0);
 
     ClearCore::ConnectorUsb.SendLine("[Spindle] Setup complete");
 }
+
 
 
 

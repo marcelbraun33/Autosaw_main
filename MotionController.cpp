@@ -218,6 +218,32 @@ MotionController::MotionStatus MotionController::getStatus() const {
     return s;
 }
 
+float MotionController::getSpindleLoadPercent() const {
+    // Check if spindle is running
+    if (!spindle.IsRunning()) {
+        return 0.0f;
+    }
+
+    // Get the HLFB PWM duty cycle from the spindle motor connector
+    // The MOTOR_SPINDLE is defined as ConnectorM0
+    float hlfbPercent = MOTOR_SPINDLE.HlfbPercent();
+
+    // If HLFB_DUTY_UNKNOWN is returned, it means no valid PWM was detected
+    if (hlfbPercent == ClearCore::MotorDriver::HLFB_DUTY_UNKNOWN) {
+        // No valid PWM signal detected, return a default value
+        return 0.0f;
+    }
+
+    // For bipolar PWM (-100% to +100%), scale to 0-100% range for the gauge
+    if (MOTOR_SPINDLE.HlfbMode() == ClearCore::MotorDriver::HLFB_MODE_HAS_BIPOLAR_PWM) {
+        // Scale from -100% to 100% to 0% to 100%
+        return (hlfbPercent + 100.0f) / 2.0f;
+    }
+
+    // For unipolar PWM (0% to 100%), use directly
+    return hlfbPercent;
+}
+
 // Add these methods to MotionController.cpp after existing code
 
 bool MotionController::startTorqueControlledFeed(AxisId axis, float targetPosition, float initialVelocityScale) {

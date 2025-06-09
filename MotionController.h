@@ -32,6 +32,9 @@ public:
     void StopSpindle();
     bool IsSpindleRunning() const;
     float CommandedRPM() const;
+/// Get the spindle load percentage from the HLFB (High-Level Feedback)
+    float getSpindleLoadPercent() const;
+
 
     //--- Axis Control ---
     bool moveToWithRate(AxisId axis, float target, float rate);

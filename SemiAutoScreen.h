@@ -25,6 +25,8 @@ public:
 
     // Update the thickness LED display (IDs 20 and 8)
     void UpdateThicknessLed(float thickness);
+    void updateFilteredTorqueGauge();
+
 
 private:
     void startFeedToStop();

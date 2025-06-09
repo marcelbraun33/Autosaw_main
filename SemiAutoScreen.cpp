@@ -1,4 +1,4 @@
-#include "SemiAutoScreen.h"
+﻿#include "SemiAutoScreen.h"
 #include "screenmanager.h" 
 #include "MotionController.h"
 #include "UIInputManager.h"
@@ -13,6 +13,10 @@
 #endif
 
 extern Genie genie;
+namespace {
+    float filteredDuty = 0.0f;
+}
+
 
 SemiAutoScreen::SemiAutoScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
@@ -90,6 +94,17 @@ void SemiAutoScreen::onHide() {
     genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_ADJUST_MAX_SPEED, 0);
 }
 
+void SemiAutoScreen::updateFilteredTorqueGauge() {
+    float duty = MOTOR_SPINDLE.HlfbPercent();
+    if (duty > 1.0f) {
+        duty = duty / 100.0f;
+    }
+    const float alpha = 0.1f; // Smoothing factor
+    filteredDuty = alpha * duty + (1.0f - alpha) * filteredDuty;
+    int16_t disp = static_cast<int16_t>(filteredDuty * 100.0f + (filteredDuty > 0 ? 0.5f : -0.5f));
+    genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, disp);
+}
+
 void SemiAutoScreen::startFeedToStop() {
     auto& motion = MotionController::Instance();
     auto& cutData = _mgr.GetCutData();
@@ -155,12 +170,21 @@ void SemiAutoScreen::startFeedToStop() {
 }
 
 void SemiAutoScreen::feedHold() {
+    // Store current state before changing it
+    SemiAutoScreenState previousState = _currentState;
+
     // Delegate to FeedHoldManager for pause/resume logic first
     _feedHoldManager.toggleFeedHold();
 
     // Update UI based on the resulting state
     if (_feedHoldManager.isPaused()) {
-        _currentState = STATE_PAUSED;
+        // Only change state if we're not in an adjustment state
+        if (previousState != STATE_ADJUSTING_PRESSURE && previousState != STATE_ADJUSTING_FEED_RATE) {
+            _currentState = STATE_PAUSED;
+        }
+        else {
+            ClearCore::ConnectorUsb.SendLine("[SemiAuto] Pausing while maintaining adjustment mode");
+        }
 
         // Set feed hold button active
         updateButtonState(WINBUTTON_FEED_HOLD, true, "[SemiAuto] Feed paused", 20);
@@ -169,11 +193,25 @@ void SemiAutoScreen::feedHold() {
         updateButtonState(WINBUTTON_EXIT_FEED_HOLD, false, nullptr, 50);
     }
     else {
+        // If we're resuming and were in an adjustment state, store that knowledge
+        bool wasAdjusting = (_currentState == STATE_ADJUSTING_PRESSURE ||
+            _currentState == STATE_ADJUSTING_FEED_RATE);
+
         _currentState = STATE_CUTTING;
         updateButtonState(WINBUTTON_FEED_HOLD, false, "[SemiAuto] Feed resumed", 20);
 
         // Hide exit button when resumed
         updateButtonState(WINBUTTON_EXIT_FEED_HOLD, false, nullptr, 0);
+
+        // Restore adjustment button state if we were adjusting
+        if (wasAdjusting) {
+            if (_currentState == STATE_ADJUSTING_PRESSURE) {
+                updateButtonState(WINBUTTON_ADJUST_CUT_PRESSURE, true, nullptr, 0);
+            }
+            else if (_currentState == STATE_ADJUSTING_FEED_RATE) {
+                updateButtonState(WINBUTTON_ADJUST_MAX_SPEED, true, nullptr, 0);
+            }
+        }
     }
 }
 
@@ -374,15 +412,37 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
             break;
 
         case WINBUTTON_FEED_HOLD:
-            if (_currentState == STATE_CUTTING || _currentState == STATE_PAUSED) {
-                feedHold(); // Normal operation
+            if (_currentState == STATE_CUTTING || _currentState == STATE_PAUSED ||
+                _currentState == STATE_ADJUSTING_PRESSURE || _currentState == STATE_ADJUSTING_FEED_RATE) {
+                // Save current adjustment state if needed
+                SemiAutoScreenState previousState = _currentState;
+
+                // Apply feed hold action
+                feedHold();
+
+                // If we were in an adjustment state, preserve it while paused
+                if ((previousState == STATE_ADJUSTING_PRESSURE || previousState == STATE_ADJUSTING_FEED_RATE)
+                    && _currentState == STATE_PAUSED) {
+                    _currentState = previousState;
+
+                    // Make sure appropriate adjustment button stays active
+                    if (previousState == STATE_ADJUSTING_PRESSURE) {
+                        updateButtonState(WINBUTTON_ADJUST_CUT_PRESSURE, true, nullptr, 0);
+                    }
+                    else {
+                        updateButtonState(WINBUTTON_ADJUST_MAX_SPEED, true, nullptr, 0);
+                    }
+
+                    ClearCore::ConnectorUsb.SendLine("[SemiAuto] Maintaining adjustment mode while paused");
+                }
             }
             else {
-                // If button is pressed when not in a cutting state, force it back to its proper state
+                // If button is pressed when not in a valid state, force it back to its proper state
                 bool shouldBeActive = (_currentState == STATE_PAUSED);
                 updateButtonState(WINBUTTON_FEED_HOLD, shouldBeActive, "[SemiAuto] Feed hold not available", 0);
             }
             break;
+
 
         case WINBUTTON_EXIT_FEED_HOLD:
             if (_feedHoldManager.isPaused() && !_isReturningToStart) {
@@ -421,22 +481,30 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
 
 
 
+            // In SemiAutoScreen::handleEvent fix the WINBUTTON_SPINDLE_ON case:
         case WINBUTTON_SPINDLE_ON:
             if (MotionController::Instance().IsSpindleRunning()) {
+                // Stop the spindle
                 MotionController::Instance().StopSpindle();
                 updateButtonState(WINBUTTON_SPINDLE_ON, false, "[SemiAuto] Spindle stopped", 0);
             }
             else {
+                // Get RPM from settings - the default is 3000 if not found in settings
                 float rpm = 3000.0f;
 #ifdef SETTINGS_HAS_SPINDLE_RPM
                 rpm = SettingsManager::Instance().settings().spindleRPM;
 #else
                 rpm = SettingsManager::Instance().settings().defaultRPM;
 #endif
+                ClearCore::ConnectorUsb.Send("[SemiAuto] Starting spindle at rpm: ");
+                ClearCore::ConnectorUsb.SendLine(rpm);
+
+                // Start the spindle with the RPM from settings
                 MotionController::Instance().StartSpindle(rpm);
                 updateButtonState(WINBUTTON_SPINDLE_ON, true, "[SemiAuto] Spindle started", 0);
             }
             break;
+
 
         case WINBUTTON_INC_PLUS_F2:
             if (_currentState == STATE_ADJUSTING_PRESSURE || _currentState == STATE_ADJUSTING_FEED_RATE) {
@@ -507,6 +575,41 @@ void SemiAutoScreen::update() {
     // Get access to CutData
     auto& cutData = _mgr.GetCutData();
 
+    // === SPINDLE LOAD METER IMPLEMENTATION ===
+    if (motion.IsSpindleRunning()) {
+        float duty = MOTOR_SPINDLE.HlfbPercent();
+
+        // Always print the raw duty for now
+        ClearCore::ConnectorUsb.Send("[SemiAuto] HLFB Raw Duty: ");
+        ClearCore::ConnectorUsb.SendLine(duty);
+
+        // Convert duty to 0.0–1.0 range if needed
+        if (duty > 1.0f) {
+            duty = duty / 100.0f;
+            ClearCore::ConnectorUsb.Send("[SemiAuto] HLFB Duty scaled to: ");
+            ClearCore::ConnectorUsb.SendLine(duty);
+        }
+
+        // --- Simple exponential smoothing filter ---
+        static float filteredDuty = 0.0f;
+        const float alpha = 0.f; // Smoothing factor (0.0 = no update, 1.0 = no smoothing)
+        filteredDuty = (1.0f - alpha) * filteredDuty + alpha * duty;
+
+        uint16_t gaugeValue = static_cast<uint16_t>(filteredDuty * 100.0f);
+        genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, gaugeValue);
+
+        // Optionally log what is being displayed
+        ClearCore::ConnectorUsb.Send("[SemiAuto] Gauge Value (Filtered Duty %): ");
+        ClearCore::ConnectorUsb.SendLine(gaugeValue);
+    }
+    else {
+        genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, 0);
+    }
+    // === END SPINDLE LOAD METER IMPLEMENTATION ===
+
+
+
+
     // Update thickness display if it has changed
     if (m_lastThickness != cutData.thickness) {
         UpdateThicknessLed(cutData.thickness);
@@ -519,64 +622,81 @@ void SemiAutoScreen::update() {
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F2,
         static_cast<uint16_t>(distanceToGo * 1000));
 
+
     // --- Feed Rate Display: Show real-time feed rate during torque-controlled cycle ---
     if (motion.isInTorqueControlledFeed(AXIS_Y)) {
         // Get current feed rate (0.0-1.0), scale to percent for display
         float currentFeedRate = MotionController::Instance().YAxisInstance().DebugGetCurrentFeedRate();
         genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_FEED_OVERRIDE,
             static_cast<uint16_t>(currentFeedRate * 100.0f)); // Show as percent
+
+        // ALWAYS update torque gauge whenever in torque-controlled feed,
+        // regardless of current state - this ensures gauge updates even in adjustment mode
+        float torque = motion.getTorquePercent(AXIS_Y);
+        float targetTorque = motion.getTorqueTarget(AXIS_Y);
+        float torquePercentage = (torque / targetTorque) * 100.0f;
+
+        if (torquePercentage > 125.0f) torquePercentage = 125.0f;
+        if (torquePercentage < 0.0f) torquePercentage = 0.0f;
+
+        uint16_t gaugeValue = static_cast<uint16_t>(torquePercentage);
+        genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_CUT_PRESSURE, gaugeValue);
     }
     else {
         // Not in torque feed: clear or show zero
         genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_FEED_OVERRIDE, 0);
     }
 
-    // Check if feed has stopped and was previously active - regardless of current state
-    // This is essential to catch completion even when in adjustment modes
-    if (!motion.isInTorqueControlledFeed(AXIS_Y) && !motion.isAxisMoving(AXIS_Y)) {
-        // If we were in any active state (cutting, paused, or adjusting), handle completion
-        if (_currentState == STATE_CUTTING || _currentState == STATE_PAUSED ||
-            _currentState == STATE_ADJUSTING_PRESSURE || _currentState == STATE_ADJUSTING_FEED_RATE) {
+    // Check for feed cycle completion - ONLY if we were in a CUTTING or PAUSED state
+    // This prevents adjustment modes from being incorrectly reset when no cut was in progress
+    static bool wasCuttingOrPaused = false;
 
-            ClearCore::ConnectorUsb.SendLine("[SemiAuto] Detected feed cycle completion");
+    // Track if we're in a cutting or paused state (or were previously)
+    if (_currentState == STATE_CUTTING || _currentState == STATE_PAUSED) {
+        wasCuttingOrPaused = true;
+    }
 
-            // Handle any active adjustment modes
-            if (_currentState == STATE_ADJUSTING_PRESSURE) {
-                ClearCore::ConnectorUsb.SendLine("[SemiAuto] Exiting cut pressure adjustment mode on completion");
+    // Only check for cycle completion if there was a cycle in progress
+    if (wasCuttingOrPaused && !motion.isInTorqueControlledFeed(AXIS_Y) && !motion.isAxisMoving(AXIS_Y)) {
+        // Reset our tracking flag since the cycle is now complete
+        wasCuttingOrPaused = false;
+
+        // If we have an active adjustment mode, handle it appropriately
+        if (_currentState == STATE_ADJUSTING_PRESSURE) {
+            ClearCore::ConnectorUsb.SendLine("[SemiAuto] Exiting cut pressure adjustment mode on feed completion");
 #ifdef SETTINGS_HAS_CUT_PRESSURE
-                SettingsManager::Instance().settings().cutPressure = _tempCutPressure;
-                SettingsManager::Instance().save();
+            SettingsManager::Instance().settings().cutPressure = _tempCutPressure;
+            SettingsManager::Instance().save();
 #endif
-                updateButtonState(WINBUTTON_ADJUST_CUT_PRESSURE, false, "[SemiAuto] Cut pressure set on completion", 20);
-            }
-            else if (_currentState == STATE_ADJUSTING_FEED_RATE) {
-                ClearCore::ConnectorUsb.SendLine("[SemiAuto] Exiting feed rate adjustment mode on completion");
-                auto& settings = SettingsManager::Instance().settings();
-                settings.feedRate = _tempFeedRate * 25.0f;
-                SettingsManager::Instance().save();
-                updateButtonState(WINBUTTON_ADJUST_MAX_SPEED, false, "[SemiAuto] Feed rate set on completion", 20);
-            }
-
-            // Set state to ready
-            _currentState = STATE_READY;
-            genie.WriteObject(GENIE_OBJ_LED, LED_READY, 1); // Turn on ready LED
-
-            // CRITICAL: Always reset Feed to Stop button state
-            updateButtonState(WINBUTTON_FEED_TO_STOP, false, "[SemiAuto] Feed cycle completed - button reset", 10);
-            updateButtonState(WINBUTTON_EXIT_FEED_HOLD, false, nullptr, 10); // Hide exit button
-            updateButtonState(WINBUTTON_FEED_HOLD, false, nullptr, 10); // Reset feed hold button
-
-            // Reset display to normal values
-#ifdef SETTINGS_HAS_CUT_PRESSURE
-            float cutPressure = SettingsManager::Instance().settings().cutPressure;
-#else
-            float cutPressure = 70.0f;
-#endif
-            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
-                static_cast<uint16_t>(cutPressure * 10.0f));
-
-            ClearCore::ConnectorUsb.SendLine("[SemiAuto] Feed cycle completed, all states reset");
+            updateButtonState(WINBUTTON_ADJUST_CUT_PRESSURE, false, "[SemiAuto] Cut pressure set on completion", 20);
         }
+        else if (_currentState == STATE_ADJUSTING_FEED_RATE) {
+            ClearCore::ConnectorUsb.SendLine("[SemiAuto] Exiting feed rate adjustment mode on feed completion");
+            auto& settings = SettingsManager::Instance().settings();
+            settings.feedRate = _tempFeedRate * 25.0f;
+            SettingsManager::Instance().save();
+            updateButtonState(WINBUTTON_ADJUST_MAX_SPEED, false, "[SemiAuto] Feed rate set on completion", 20);
+        }
+
+        // Set state to ready
+        _currentState = STATE_READY;
+        genie.WriteObject(GENIE_OBJ_LED, LED_READY, 1); // Turn on ready LED
+
+        // CRITICAL: Always reset Feed to Stop button state
+        updateButtonState(WINBUTTON_FEED_TO_STOP, false, "[SemiAuto] Feed cycle completed - button reset", 10);
+        updateButtonState(WINBUTTON_EXIT_FEED_HOLD, false, nullptr, 10); // Hide exit button
+        updateButtonState(WINBUTTON_FEED_HOLD, false, nullptr, 10); // Reset feed hold button
+
+        // Reset display to normal values
+#ifdef SETTINGS_HAS_CUT_PRESSURE
+        float cutPressure = SettingsManager::Instance().settings().cutPressure;
+#else
+        float cutPressure = 70.0f;
+#endif
+        genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
+            static_cast<uint16_t>(cutPressure * 10.0f));
+
+        ClearCore::ConnectorUsb.SendLine("[SemiAuto] Feed cycle completed, all states reset");
     }
 
     // Monitor return motion completion
@@ -631,15 +751,8 @@ void SemiAutoScreen::update() {
     }
     // Only process normal cutting/paused states if not in return motion
     else if (_currentState == STATE_CUTTING || _currentState == STATE_PAUSED) {
-        float torque = motion.getTorquePercent(AXIS_Y);
+        // We still compute target pressure for LED display here even though gauge is already updated above
         float targetTorque = motion.getTorqueTarget(AXIS_Y);
-        float torquePercentage = (torque / targetTorque) * 100.0f;
-
-        if (torquePercentage > 125.0f) torquePercentage = 125.0f;
-        if (torquePercentage < 0.0f) torquePercentage = 0.0f;
-
-        uint16_t gaugeValue = static_cast<uint16_t>(torquePercentage);
-        genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_CUT_PRESSURE, gaugeValue);
         genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUT_PRESSURE,
             static_cast<uint16_t>(targetTorque * 10.0f)); // Always show target pressure
 
