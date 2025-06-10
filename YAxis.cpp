@@ -124,6 +124,7 @@ void YAxis::Update() {
     _torquePct = _dynamicFeed->updateTorqueMeasurement();
 
     // --- DEBUG: Log torque and feed state for troubleshooting ---
+#ifdef YAXIS_FEED_DEBUG_LOG
     static uint32_t lastDebugLog = 0;
     uint32_t now = ClearCore::TimingMgr.Milliseconds();
     if (now - lastDebugLog > 500) {
@@ -140,6 +141,7 @@ void YAxis::Update() {
         ClearCore::ConnectorUsb.Send(DebugGetCurrentFeedRate() * 100.0f, 1);
         ClearCore::ConnectorUsb.SendLine("%");
     }
+#endif // YAXIS_FEED_DEBUG_LOG
     // ------------------------------------------------------------
 
     // Check if we're in torque-controlled feed mode
