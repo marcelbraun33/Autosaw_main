@@ -5,13 +5,13 @@
 
 // Define feature flags for optional settings
 #define SETTINGS_HAS_CUT_PRESSURE
-#define SETTINGS_HAS_SPINDLE_RPM
+
 
 // Holds all user-configurable settings
 struct Settings {
     float bladeDiameter;
     float bladeThickness;
-    float defaultRPM;
+
     float feedRate;
     float rapidRate;
     float manualOverrideRPM; 

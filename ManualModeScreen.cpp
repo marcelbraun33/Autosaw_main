@@ -80,7 +80,7 @@ void ManualModeScreen::toggleSpindle() {
     }
     else {
         auto& settings = SettingsManager::Instance().settings();
-        mc.StartSpindle(settings.defaultRPM);
+        mc.StartSpindle(settings.spindleRPM);
         genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SPINDLE_TOGGLE_F7, 1);
     }
 }

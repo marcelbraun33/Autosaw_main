@@ -21,7 +21,7 @@ void SettingsScreen::onShow() {
 
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DIAMETER_SETTINGS, (uint16_t)round(S.bladeDiameter * 10.0f));
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_THICKNESS_SETTINGS, (uint16_t)round(S.bladeThickness * 1000.0f));
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_SETTINGS, (uint16_t)S.defaultRPM);
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_SETTINGS, (uint16_t)S.spindleRPM);
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_FEEDRATE_SETTINGS, (uint16_t)round(S.feedRate * 10.0f));
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RAPID_SETTINGS, (uint16_t)round(S.rapidRate * 10.0f));
 
@@ -84,6 +84,7 @@ void SettingsScreen::handleEvent(const genieFrame& e) {
         }
         break;
 
+        // In SettingsScreen.cpp - in the WINBUTTON_SET_RPM_SETTINGS case
     case WINBUTTON_SET_RPM_SETTINGS:
         if (ui.isEditing()) {
             if (ui.isFieldActive(WINBUTTON_SET_RPM_SETTINGS)) {
@@ -96,11 +97,13 @@ void SettingsScreen::handleEvent(const genieFrame& e) {
             }
         }
         else {
+            // Bind directly to spindleRPM
             ui.bindField(WINBUTTON_SET_RPM_SETTINGS, LEDDIGITS_RPM_SETTINGS,
-                &settings.defaultRPM, 100, 4000, 10, 0);
+                &settings.spindleRPM, 100, 4000, 10, 0);
             genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_SET_RPM_SETTINGS, 1);
         }
         break;
+
 
     case WINBUTTON_SET_FEEDRATE_SETTINGS:
         if (ui.isEditing()) {

@@ -14,7 +14,7 @@ SettingsManager::SettingsManager() {
     // Default values
     settings_.bladeDiameter = 1.0f;
     settings_.bladeThickness = 0.05f;
-    settings_.defaultRPM = 3600.0f;
+
     settings_.feedRate = 10.0f;
     settings_.rapidRate = 50.0f;
 }
@@ -25,8 +25,6 @@ void SettingsManager::load() {
 
 void SettingsManager::save() {
     // Clamp values to valid ranges
-    if (settings_.defaultRPM > 4000) settings_.defaultRPM = 4000;
-    if (settings_.defaultRPM < 0)    settings_.defaultRPM = 0;
 
     if (settings_.bladeDiameter > 10.0f) settings_.bladeDiameter = 10.0f;
     if (settings_.bladeDiameter < 0.1f)  settings_.bladeDiameter = 0.1f;

@@ -84,7 +84,7 @@ void myGenieEventHandler() {
             }
             else {
                 auto& S = SettingsManager::Instance().settings();
-                MotionController::Instance().StartSpindle(S.defaultRPM);
+                MotionController::Instance().StartSpindle(S.spindleRPM);
             }
             return;
 

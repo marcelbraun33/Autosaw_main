@@ -8,6 +8,8 @@
 #include "YAxis.h"
 #include "ZAxis.h"
 #include "EncoderPositionTracker.h"
+#include "SettingsManager.h"
+
 
 MotionController& MotionController::Instance() {
     static MotionController instance;
@@ -70,7 +72,14 @@ bool MotionController::StartHomingAll() {
     return okX && okY && okZ;
 }
 
+
+
 void MotionController::StartSpindle(float rpm) {
+    // If no RPM specified, use the setting from SettingsManager
+    if (rpm <= 0.0f) {
+        rpm = SettingsManager::Instance().settings().spindleRPM;
+    }
+
     // Manual clamp in place of constrain()
     if (rpm < 0.0f)                rpm = 0.0f;
     else if (rpm > SPINDLE_MAX_RPM) rpm = SPINDLE_MAX_RPM;
@@ -81,6 +90,7 @@ void MotionController::StartSpindle(float rpm) {
         return;
     }
 
+    // This is the crucial missing line that starts the actual spindle
     spindle.Start(rpm);
 
     // Log via ConnectorUsb
@@ -88,6 +98,7 @@ void MotionController::StartSpindle(float rpm) {
     ClearCore::ConnectorUsb.Send(static_cast<int>(rpm));
     ClearCore::ConnectorUsb.SendLine(" RPM");
 }
+
 
 void MotionController::StopSpindle() {
     spindle.Stop();

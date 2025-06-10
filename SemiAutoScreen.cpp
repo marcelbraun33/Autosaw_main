@@ -468,29 +468,26 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
 
 
 
-            // In SemiAutoScreen::handleEvent fix the WINBUTTON_SPINDLE_ON case:
-        case WINBUTTON_SPINDLE_ON:
-            if (MotionController::Instance().IsSpindleRunning()) {
-                // Stop the spindle
-                MotionController::Instance().StopSpindle();
-                updateButtonState(WINBUTTON_SPINDLE_ON, false, "[SemiAuto] Spindle stopped", 0);
-            }
-            else {
-                // Get RPM from settings - the default is 3000 if not found in settings
-                float rpm = 3000.0f;
-#ifdef SETTINGS_HAS_SPINDLE_RPM
-                rpm = SettingsManager::Instance().settings().spindleRPM;
-#else
-                rpm = SettingsManager::Instance().settings().defaultRPM;
-#endif
-                ClearCore::ConnectorUsb.Send("[SemiAuto] Starting spindle at rpm: ");
-                ClearCore::ConnectorUsb.SendLine(rpm);
+// In SemiAutoScreen::handleEvent fix the WINBUTTON_SPINDLE_ON case:
+case WINBUTTON_SPINDLE_ON:
+    if (MotionController::Instance().IsSpindleRunning()) {
+        // Stop the spindle
+        MotionController::Instance().StopSpindle();
+        updateButtonState(WINBUTTON_SPINDLE_ON, false, "[SemiAuto] Spindle stopped", 0);
+    }
+    else {
+        // Get RPM from settings
+        float rpm = SettingsManager::Instance().settings().spindleRPM;
+        
+        ClearCore::ConnectorUsb.Send("[SemiAuto] Starting spindle at rpm: ");
+        ClearCore::ConnectorUsb.SendLine(rpm);
 
-                // Start the spindle with the RPM from settings
-                MotionController::Instance().StartSpindle(rpm);
-                updateButtonState(WINBUTTON_SPINDLE_ON, true, "[SemiAuto] Spindle started", 0);
-            }
-            break;
+        // Start the spindle with the RPM from settings
+        MotionController::Instance().StartSpindle(rpm);
+        updateButtonState(WINBUTTON_SPINDLE_ON, true, "[SemiAuto] Spindle started", 0);
+    }
+    break;
+
 
 
         case WINBUTTON_INC_PLUS_F2:

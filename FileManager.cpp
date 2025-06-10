@@ -50,7 +50,7 @@ bool FileManager::loadSettings(Settings& s) {
     if (idx == 6) {
         s.bladeDiameter = vals[0];
         s.bladeThickness = vals[1];
-        s.defaultRPM = vals[2];
+        s.spindleRPM = vals[2];
         s.feedRate = vals[3];
         s.rapidRate = vals[4];
         s.manualOverrideRPM = vals[5];
@@ -78,7 +78,7 @@ bool FileManager::saveSettings(const Settings& s) {
     // Write CSV line
     myFile.print(s.bladeDiameter);     myFile.print(',');
     myFile.print(s.bladeThickness);    myFile.print(',');
-    myFile.print(s.defaultRPM);        myFile.print(',');
+    myFile.print(s.spindleRPM);        myFile.print(',');
     myFile.print(s.feedRate);          myFile.print(',');
     myFile.print(s.rapidRate);         myFile.print(',');
     myFile.print(s.manualOverrideRPM); myFile.println();
