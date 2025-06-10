@@ -13,9 +13,6 @@
 #endif
 
 extern Genie genie;
-namespace {
-    float filteredDuty = 0.0f;
-}
 
 
 SemiAutoScreen::SemiAutoScreen(ScreenManager& mgr) : _mgr(mgr) {}
@@ -94,16 +91,6 @@ void SemiAutoScreen::onHide() {
     genie.WriteObject(GENIE_OBJ_WINBUTTON, WINBUTTON_ADJUST_MAX_SPEED, 0);
 }
 
-void SemiAutoScreen::updateFilteredTorqueGauge() {
-    float duty = MOTOR_SPINDLE.HlfbPercent();
-    if (duty > 1.0f) {
-        duty = duty / 100.0f;
-    }
-    const float alpha = 0.1f; // Smoothing factor
-    filteredDuty = alpha * duty + (1.0f - alpha) * filteredDuty;
-    int16_t disp = static_cast<int16_t>(filteredDuty * 100.0f + (filteredDuty > 0 ? 0.5f : -0.5f));
-    genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, disp);
-}
 
 void SemiAutoScreen::startFeedToStop() {
     auto& motion = MotionController::Instance();
@@ -565,50 +552,54 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
         break;
     }
 }
+void SemiAutoScreen::updateFilteredTorqueGauge() {
+    // Only proceed if spindle is running
+    if (!MotionController::Instance().IsSpindleRunning()) {
+        genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, 0);
+        return;
+    }
+
+    // Get raw duty value from HLFB
+    float duty = MOTOR_SPINDLE.HlfbPercent();
+
+    // Normalize to 0.0-1.0 range if necessary
+    if (duty > 1.0f) {
+        duty = duty / 100.0f;
+    }
+
+    // Apply more aggressive filtering for stability
+    static float filteredDuty = 0.0f;
+    const float alpha = 0.005f;  // More aggressive filtering (lower = slower but more stable)
+    filteredDuty = alpha * duty + (1.0f - alpha) * filteredDuty;
+
+    // Round to nearest percentage point for display stability (like MSP)
+    int16_t displayValue = static_cast<int16_t>(filteredDuty * 100.0f + 0.5f);  // Round to nearest integer
+
+    // Update gauge
+    genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, displayValue);
+
+    // Optional debugging - log at reasonable intervals
+    static uint32_t lastLogTime = 0;
+    uint32_t currentTime = ClearCore::TimingMgr.Milliseconds();
+    if (currentTime - lastLogTime > 1000) {  // Log once per second
+        lastLogTime = currentTime;
+        ClearCore::ConnectorUsb.Send("[SemiAuto] Raw duty: ");
+        ClearCore::ConnectorUsb.Send(duty * 100.0f, 0);  // Show as percentage with no decimal
+        ClearCore::ConnectorUsb.Send("%, Filtered: ");
+        ClearCore::ConnectorUsb.SendLine(displayValue);  // Show as rounded integer percentage
+    }
+}
+
 void SemiAutoScreen::update() {
     auto& motion = MotionController::Instance();
+    auto& cutData = _mgr.GetCutData();
 
     // Update RPM display
     uint16_t rpm = motion.IsSpindleRunning() ? (uint16_t)motion.CommandedRPM() : 0;
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_DISPLAY, rpm);
 
-    // Get access to CutData
-    auto& cutData = _mgr.GetCutData();
-
-    // === SPINDLE LOAD METER IMPLEMENTATION ===
-    if (motion.IsSpindleRunning()) {
-        float duty = MOTOR_SPINDLE.HlfbPercent();
-
-        // Always print the raw duty for now
-        ClearCore::ConnectorUsb.Send("[SemiAuto] HLFB Raw Duty: ");
-        ClearCore::ConnectorUsb.SendLine(duty);
-
-        // Convert duty to 0.0–1.0 range if needed
-        if (duty > 1.0f) {
-            duty = duty / 100.0f;
-            ClearCore::ConnectorUsb.Send("[SemiAuto] HLFB Duty scaled to: ");
-            ClearCore::ConnectorUsb.SendLine(duty);
-        }
-
-        // --- Simple exponential smoothing filter ---
-        static float filteredDuty = 0.0f;
-        const float alpha = 0.f; // Smoothing factor (0.0 = no update, 1.0 = no smoothing)
-        filteredDuty = (1.0f - alpha) * filteredDuty + alpha * duty;
-
-        uint16_t gaugeValue = static_cast<uint16_t>(filteredDuty * 100.0f);
-        genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, gaugeValue);
-
-        // Optionally log what is being displayed
-        ClearCore::ConnectorUsb.Send("[SemiAuto] Gauge Value (Filtered Duty %): ");
-        ClearCore::ConnectorUsb.SendLine(gaugeValue);
-    }
-    else {
-        genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, 0);
-    }
-    // === END SPINDLE LOAD METER IMPLEMENTATION ===
-
-
-
+    // Update the spindle load meter using the enhanced implementation
+    updateFilteredTorqueGauge();
 
     // Update thickness display if it has changed
     if (m_lastThickness != cutData.thickness) {
@@ -622,11 +613,10 @@ void SemiAutoScreen::update() {
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F2,
         static_cast<uint16_t>(distanceToGo * 1000));
 
-
     // --- Feed Rate Display: Show real-time feed rate during torque-controlled cycle ---
     if (motion.isInTorqueControlledFeed(AXIS_Y)) {
         // Get current feed rate (0.0-1.0), scale to percent for display
-        float currentFeedRate = MotionController::Instance().YAxisInstance().DebugGetCurrentFeedRate();
+        float currentFeedRate = motion.YAxisInstance().DebugGetCurrentFeedRate();
         genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_FEED_OVERRIDE,
             static_cast<uint16_t>(currentFeedRate * 100.0f)); // Show as percent
 
