@@ -8,6 +8,7 @@
 #include <ClearCore.h>
 #include "Config.h" // Ensure LEDDIGITS_FEED_OVERRIDE and LEDDIGITS_DISTANCE_TO_GO_F2 are available
 
+
 #ifndef GENIE_OBJ_LED_DIGITS
 #define GENIE_OBJ_LED_DIGITS 15
 #endif
@@ -15,7 +16,9 @@
 extern Genie genie;
 
 
-SemiAutoScreen::SemiAutoScreen(ScreenManager& mgr) : _mgr(mgr) {}
+SemiAutoScreen::SemiAutoScreen(ScreenManager& mgr)
+    : _mgr(mgr), _spindleLoadMeter(IGAUGE_SEMIAUTO_LOAD_METER) {
+}
 
 void SemiAutoScreen::updateButtonState(uint16_t buttonId, bool state, const char* logMessage, uint16_t delayMs) {
     showButtonSafe(buttonId, state ? 1 : 0, delayMs);
@@ -468,25 +471,25 @@ void SemiAutoScreen::handleEvent(const genieFrame& e) {
 
 
 
-// In SemiAutoScreen::handleEvent fix the WINBUTTON_SPINDLE_ON case:
-case WINBUTTON_SPINDLE_ON:
-    if (MotionController::Instance().IsSpindleRunning()) {
-        // Stop the spindle
-        MotionController::Instance().StopSpindle();
-        updateButtonState(WINBUTTON_SPINDLE_ON, false, "[SemiAuto] Spindle stopped", 0);
-    }
-    else {
-        // Get RPM from settings
-        float rpm = SettingsManager::Instance().settings().spindleRPM;
-        
-        ClearCore::ConnectorUsb.Send("[SemiAuto] Starting spindle at rpm: ");
-        ClearCore::ConnectorUsb.SendLine(rpm);
+            // In SemiAutoScreen::handleEvent fix the WINBUTTON_SPINDLE_ON case:
+        case WINBUTTON_SPINDLE_ON:
+            if (MotionController::Instance().IsSpindleRunning()) {
+                // Stop the spindle
+                MotionController::Instance().StopSpindle();
+                updateButtonState(WINBUTTON_SPINDLE_ON, false, "[SemiAuto] Spindle stopped", 0);
+            }
+            else {
+                // Get RPM from settings
+                float rpm = SettingsManager::Instance().settings().spindleRPM;
 
-        // Start the spindle with the RPM from settings
-        MotionController::Instance().StartSpindle(rpm);
-        updateButtonState(WINBUTTON_SPINDLE_ON, true, "[SemiAuto] Spindle started", 0);
-    }
-    break;
+                ClearCore::ConnectorUsb.Send("[SemiAuto] Starting spindle at rpm: ");
+                ClearCore::ConnectorUsb.SendLine(rpm);
+
+                // Start the spindle with the RPM from settings
+                MotionController::Instance().StartSpindle(rpm);
+                updateButtonState(WINBUTTON_SPINDLE_ON, true, "[SemiAuto] Spindle started", 0);
+            }
+            break;
 
 
 
@@ -549,43 +552,6 @@ case WINBUTTON_SPINDLE_ON:
         break;
     }
 }
-void SemiAutoScreen::updateFilteredTorqueGauge() {
-    // Only proceed if spindle is running
-    if (!MotionController::Instance().IsSpindleRunning()) {
-        genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, 0);
-        return;
-    }
-
-    // Get raw duty value from HLFB
-    float duty = MOTOR_SPINDLE.HlfbPercent();
-
-    // Normalize to 0.0-1.0 range if necessary
-    if (duty > 1.0f) {
-        duty = duty / 100.0f;
-    }
-
-    // Apply more aggressive filtering for stability
-    static float filteredDuty = 0.0f;
-    const float alpha = 0.005f;  // More aggressive filtering (lower = slower but more stable)
-    filteredDuty = alpha * duty + (1.0f - alpha) * filteredDuty;
-
-    // Round to nearest percentage point for display stability (like MSP)
-    int16_t displayValue = static_cast<int16_t>(filteredDuty * 100.0f + 0.5f);  // Round to nearest integer
-
-    // Update gauge
-    genie.WriteObject(GENIE_OBJ_IGAUGE, IGAUGE_SEMIAUTO_LOAD_METER, displayValue);
-
-    // Optional debugging - log at reasonable intervals
-    static uint32_t lastLogTime = 0;
-    uint32_t currentTime = ClearCore::TimingMgr.Milliseconds();
-    if (currentTime - lastLogTime > 1000) {  // Log once per second
-        lastLogTime = currentTime;
-        ClearCore::ConnectorUsb.Send("[SemiAuto] Raw duty: ");
-        ClearCore::ConnectorUsb.Send(duty * 100.0f, 0);  // Show as percentage with no decimal
-        ClearCore::ConnectorUsb.Send("%, Filtered: ");
-        ClearCore::ConnectorUsb.SendLine(displayValue);  // Show as rounded integer percentage
-    }
-}
 
 void SemiAutoScreen::update() {
     auto& motion = MotionController::Instance();
@@ -595,8 +561,8 @@ void SemiAutoScreen::update() {
     uint16_t rpm = motion.IsSpindleRunning() ? (uint16_t)motion.CommandedRPM() : 0;
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_DISPLAY, rpm);
 
-    // Update the spindle load meter using the enhanced implementation
-    updateFilteredTorqueGauge();
+    // Update the spindle load meter using the SpindleLoadMeter helper
+    _spindleLoadMeter.Update();
 
     // Update thickness display if it has changed
     if (m_lastThickness != cutData.thickness) {
@@ -842,8 +808,6 @@ void SemiAutoScreen::update() {
         }
     }
 }
-
-
 
 void SemiAutoScreen::UpdateThicknessLed(float thickness) {
     m_lastThickness = thickness;

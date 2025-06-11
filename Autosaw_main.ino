@@ -1,4 +1,5 @@
 ﻿
+#include <genie_buffer.h>
 #include <ClearCore.h>
 #include <genieArduinoDEV.h>
 #include "Config.h"

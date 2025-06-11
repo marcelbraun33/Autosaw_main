@@ -2,6 +2,8 @@
 #include "Screen.h"
 #include "cutData.h"
 #include "FeedHoldManager.h" // Add this include
+#include "SpindleLoadMeter.h" // Add include for SpindleLoadMeter
+
 class ScreenManager;
 
 // Define screen states
@@ -25,8 +27,6 @@ public:
 
     // Update the thickness LED display (IDs 20 and 8)
     void UpdateThicknessLed(float thickness);
-    void updateFilteredTorqueGauge();
-
 
 private:
     void startFeedToStop();
@@ -44,6 +44,7 @@ private:
     float _tempCutPressure = 70.0f;   // Temporary cut pressure value for MPG adjustment
     float _tempFeedRate = 0.5f;       // Temporary feed rate value (0.0-1.0 scale)
     bool _isReturningToStart = false; // Flag to track return motion
+    SpindleLoadMeter _spindleLoadMeter; // SpindleLoadMeter instance
 
     // Constants for cut pressure adjustment
     static constexpr float CUT_PRESSURE_INCREMENT = 1.0f;
