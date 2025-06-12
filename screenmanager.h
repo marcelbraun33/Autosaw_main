@@ -35,7 +35,8 @@ public:
     void Back();
    
     void clearAllLeds();
-
+    JogXScreen& GetJogXScreen() { return _jogXScreen; }
+    JogYScreen& GetJogYScreen() { return _jogYScreen; }
     uint8_t currentForm() const { return _currentForm; }
     Screen* currentScreen();
     CutData& GetCutData() { return _cutData; }

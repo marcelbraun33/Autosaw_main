@@ -1,3 +1,4 @@
+#pragma once
 
 #include "Screen.h"
 #include "Config.h"
@@ -15,11 +16,17 @@ extern Genie genie;
 
 class JogYScreen : public Screen {
 public:
+
+    float getCutStart() const;
+    float getCutStop() const;
+    float getRetractPosition() const;
+
     void onShow() override;
     void onHide() override;
     void handleEvent(const genieFrame& e) override;
     void update() override;
     JogYScreen(ScreenManager& mgr);
+
 private:
     // Input capture methods
     void captureCutStart();

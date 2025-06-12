@@ -80,6 +80,7 @@
     <TargetOSAndVersion>Arduino</TargetOSAndVersion>
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="AutoCutCycleManager.cpp" />
     <ClCompile Include="AutoCutScreen.cpp" />
     <ClCompile Include="AutosawController.cpp" />
     <ClCompile Include="CutSequenceController.cpp" />
@@ -119,8 +120,10 @@
     <ProjectCapability Include="VisualMicro" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AutoCutCycleManager.h" />
     <ClInclude Include="AutoCutScreen.h" />
     <ClInclude Include="AutosawController.h" />
+    <ClInclude Include="Common.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="CutData.h" />
     <ClInclude Include="CutSequenceController.h" />

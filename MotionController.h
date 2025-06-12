@@ -32,9 +32,8 @@ public:
     void StopSpindle();
     bool IsSpindleRunning() const;
     float CommandedRPM() const;
-/// Get the spindle load percentage from the HLFB (High-Level Feedback)
+    /// Get the spindle load percentage from the HLFB (High-Level Feedback)
     float getSpindleLoadPercent() const;
-
 
     //--- Axis Control ---
     bool moveToWithRate(AxisId axis, float target, float rate);
@@ -64,6 +63,11 @@ public:
     /// Start a torque-controlled feed for Y-axis to maintain constant cutting force
     bool startTorqueControlledFeed(AxisId axis, float targetPosition, float initialVelocityScale);
 
+    // Optionally, add a convenience inline overload in the header:
+    bool startTorqueControlledFeed(AxisId axis, float targetPosition) {
+        return startTorqueControlledFeed(axis, targetPosition, 1.0f);
+    }
+
     /// Set the torque target for the specified axis
     void setTorqueTarget(AxisId axis, float targetPercent);
 
@@ -81,6 +85,12 @@ public:
     void resumeTorqueControlledFeed(int axis);
     void abortTorqueControlledFeed(int axis);
     void moveTo(int axis, float position, float velocityScale = 1.0f);
+
+    // Add these methods to match usage in AutoCutCycleManager
+    bool isAxisAtPosition(int axis, float position) const;
+    bool isFeedComplete() const;
+    float getSpindleRPM() const;
+    void MoveAxisTo(int axis, float position, float velocityScale = 1.0f);
 
     //--- Emergency ---
     void EmergencyStop();

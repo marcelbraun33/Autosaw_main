@@ -255,8 +255,7 @@ float MotionController::getSpindleLoadPercent() const {
     return hlfbPercent;
 }
 
-// Add these methods to MotionController.cpp after existing code
-
+// Ensure only the correct three-argument version is implemented:
 bool MotionController::startTorqueControlledFeed(AxisId axis, float targetPosition, float initialVelocityScale) {
     if (axis == AXIS_Y) {
         return yAxis.StartTorqueControlledFeed(targetPosition, initialVelocityScale);
@@ -324,4 +323,45 @@ void MotionController::moveTo(int axis, float position, float velocityScale) {
         YAxisInstance().MoveTo(position, velocityScale);
     }
     // Add similar logic for other axes if needed
+}
+
+// Add these methods to match usage in AutoCutCycleManager
+
+bool MotionController::isAxisAtPosition(int axis, float position) const {
+    switch (axis) {
+        case AXIS_X:
+            return fabs(xAxis.GetPosition() - position) < 0.001f;
+        case AXIS_Y:
+            return fabs(yAxis.GetPosition() - position) < 0.001f;
+        case AXIS_Z:
+            return fabs(zAxis.GetPosition() - position) < 0.001f;
+        default:
+            return false;
+    }
+}
+
+bool MotionController::isFeedComplete() const {
+    // Implement logic to determine if feed is complete
+    // Placeholder: return true if Y axis is not moving
+    return !yAxis.IsMoving();
+}
+
+float MotionController::getSpindleRPM() const {
+    return spindle.CommandedRPM();
+}
+
+void MotionController::MoveAxisTo(int axis, float position, float velocityScale) {
+    switch (axis) {
+        case AXIS_X:
+            xAxis.MoveTo(position, velocityScale);
+            break;
+        case AXIS_Y:
+            yAxis.MoveTo(position, velocityScale);
+            break;
+        case AXIS_Z:
+            zAxis.MoveTo(position, velocityScale);
+            break;
+        default:
+            break;
+    }
 }

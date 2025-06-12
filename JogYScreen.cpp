@@ -312,6 +312,29 @@ void JogYScreen::updateAllDisplays() {
         static_cast<uint16_t>(currentPos * 1000));
 }
 
+// In JogYScreen.cpp
+float JogYScreen::getCutStart() const {
+    // Return the Y cut start position.
+    // Replace with your actual storage variable.
+    // Example:
+    // return m_cutStart;
+    return 0.0f; // Placeholder
+}
+float JogYScreen::getCutStop() const {
+    // Return the Y cut stop position.
+    // Replace with your actual storage variable.
+    // Example:
+    // return m_cutStop;
+    return 0.0f; // Placeholder
+}
+float JogYScreen::getRetractPosition() const {
+    // Return the Y retract position.
+    // Replace with your actual storage variable.
+    // Example:
+    // return m_retractPosition;
+    return 0.0f; // Placeholder
+}
+
 void JogYScreen::update() {
     auto& cutData = _mgr.GetCutData();
     

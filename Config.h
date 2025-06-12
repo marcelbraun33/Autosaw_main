@@ -104,6 +104,8 @@
 #define LEDDIGITS_DISTANCE_TO_GO_F5       18   // Form5 - Leddigits18
 #define LEDDIGITS_CUT_PRESSURE_F5         30   // Form5 - Leddigits30
 #define LEDDIGITS_TOTAL_SLICES_F5         31   // Form5 - Leddigits31
+#define WINBUTTON_ADJUST_MAX_SPEED_F5     45   // Form5 - Winbutton45 (Adjust Max Speed f5)
+
 
 // Form6 (Jog Table Y)
 #define LEDDIGITS_STOCK_END_Y             19   // Form6 - Leddigits19
@@ -180,6 +182,7 @@
 #define WINBUTTON_SETTINGS_F5             26   // Form5 - Winbutton26
 #define WINBUTTON_ADJUST_CUT_PRESSURE_F5  43   // Form5 - Winbutton43
 #define WINBUTTON_MOVE_TO_START_POSITION  44   // Form5 - Winbutton44
+
 
 // Form6 (Jog Table Y)
 #define WINBUTTON_CAPTURE_CUT_END_F6      27   // Form6 - Winbutton27

@@ -7,6 +7,8 @@
 #include "JogUtilities.h"
 #include <cmath>
 #include "Config.h"
+#include <vector>
+#include "CutSequenceController.h"
 
 #ifndef LED_NEGATIVE_INDICATOR
 #define LED_NEGATIVE_INDICATOR 0
@@ -366,7 +368,7 @@ void JogXScreen::setIncrement(float newIncrement) {
 
     updateIncrementDisplay();
     updateThicknessDisplay();
-    updateTotalSlicesDisplay();
+    updateTotalSlicesDisplay(); // This will now also rebuild CutSequenceController
     updateSliceCounterDisplay();
 
     ClearCore::ConnectorUsb.SendLine("--------- SET INCREMENT COMPLETE ---------");
@@ -410,6 +412,15 @@ void JogXScreen::updateThicknessDisplay() {
 void JogXScreen::updateTotalSlicesDisplay() {
     auto& cutData = _mgr.GetCutData();
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_TOTAL_SLICES, static_cast<uint16_t>(cutData.totalSlices));
+
+    // Ensure CutSequenceController is rebuilt with the correct number of increments
+    float stockZero = cutData.useStockZero ? cutData.positionZero : 0.0f;
+    float increment = cutData.increment;
+    int totalSlices = cutData.totalSlices;
+    // Only rebuild if increment and totalSlices are valid
+    if (increment > 0.0f && totalSlices > 0) {
+        CutSequenceController::Instance().buildXPositions(stockZero, increment, totalSlices);
+    }
 }
 
 void JogXScreen::updateSliceCounterDisplay() {
@@ -418,6 +429,17 @@ void JogXScreen::updateSliceCounterDisplay() {
     if (cutData.increment > 0.0f)
         available = static_cast<int>(floorf(cutData.stockLength / cutData.increment));
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SLICE_COUNTER, static_cast<uint16_t>(available));
+}
+
+void JogXScreen::updateCutSequencePositions() {
+    auto& cutData = _mgr.GetCutData();
+    float stockZero = cutData.useStockZero ? cutData.positionZero : 0.0f;
+    float increment = cutData.increment;
+    int totalSlices = cutData.totalSlices;
+    // Always rebuild with current values
+    if (increment > 0.0f && totalSlices > 0) {
+        CutSequenceController::Instance().buildXPositions(stockZero, increment, totalSlices);
+    }
 }
 
 void JogXScreen::update() {
@@ -443,4 +465,17 @@ void JogXScreen::update() {
 float JogXScreen::GetCutThickness() {
     auto& cutData = ScreenManager::Instance().GetCutData();
     return cutData.thickness;
+}
+
+std::vector<float> JogXScreen::getIncrementPositions() const {
+    auto& cutData = _mgr.GetCutData();
+    float stockZero = cutData.useStockZero ? cutData.positionZero : 0.0f;
+    float increment = cutData.increment;
+    int totalSlices = cutData.totalSlices;
+
+    std::vector<float> positions;
+    for (int i = 0; i < totalSlices; ++i) {
+        positions.push_back(stockZero + i * increment);
+    }
+    return positions;
 }

@@ -1,4 +1,16 @@
 #pragma once
+
+// Add these lines before any #include <vector> or STL headers
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
+
+#include <vector>
+#include <algorithm> // for std::min/std::max if needed
+
 #include "Screen.h"
 #include "Config.h"
 #include "CutData.h"
@@ -16,6 +28,13 @@ public:
 
     // Add a static getter for cut thickness (adjust as needed)
     static float GetCutThickness();
+    std::vector<float> getIncrementPositions() const;
+
+    // Add this getter to expose the current total slices (slice counter)
+    int getTotalSlices() const;
+
+    // Add this to allow external update of the cut sequence positions if needed
+    void updateCutSequencePositions();
 
 private:
     // UI and logic helpers
