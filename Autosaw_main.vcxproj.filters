@@ -40,6 +40,9 @@
     <Filter Include="src\_micro-api\libraries">
       <UniqueIdentifier>{5cbb0948-708a-46c5-af02-b3f02b7c6ff1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Motion\NewFilter1">
+      <UniqueIdentifier>{42c7680d-2233-468f-bab5-5fc98fe74ce8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\arduino folders read me.txt">
