@@ -31,6 +31,15 @@
     <Filter Include="Source Files\Motion">
       <UniqueIdentifier>{e5676234-9994-469c-84d2-8f5b1950c657}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{43ecaefe-155e-4126-b269-b095d19b89bf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\_micro-api">
+      <UniqueIdentifier>{17f5e3e7-3155-46d4-a3de-59052a8bb30a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\_micro-api\libraries">
+      <UniqueIdentifier>{5cbb0948-708a-46c5-af02-b3f02b7c6ff1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\arduino folders read me.txt">
@@ -117,6 +126,12 @@
     </ClCompile>
     <ClCompile Include="DynamicFeed.cpp">
       <Filter>Source Files\Motion</Filter>
+    </ClCompile>
+    <ClCompile Include="AutoCutCycleManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SpindleLoadMeter.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -212,6 +227,24 @@
     </ClInclude>
     <ClInclude Include="DynamicFeed.h">
       <Filter>Header Files\Motion</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\AppData\Local\Arduino15\packages\ClearCore\hardware\sam\1.7.0\Teknic\libClearCore\inc\ClearCore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Documents\Arduino\libraries\genieArduinoDEV\src\genieArduinoDEV.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\Documents\Arduino\libraries\genieArduinoDEV\src\genie_buffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AutoCutCycleManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SpindleLoadMeter.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
