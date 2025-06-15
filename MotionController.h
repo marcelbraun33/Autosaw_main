@@ -1,7 +1,7 @@
 // Updated MotionController.h with torque control methods
 #pragma once
 
-#include "Spindle.h"
+#include "Spindle.h"  // Include the Spindle header first
 #include "XAxis.h"
 #include "YAxis.h"
 #include "ZAxis.h"

@@ -39,6 +39,7 @@ public:
     bool isActive() const { return _state != AutoCutState::Idle && _state != AutoCutState::Complete; }
     bool isPaused() const { return _state == AutoCutState::Paused; }
     bool isReturning() const { return _state == AutoCutState::Returning; }
+    bool isInCycle() const;
 
 private:
     AutoCutCycleManager();

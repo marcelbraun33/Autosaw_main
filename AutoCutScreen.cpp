@@ -4,18 +4,33 @@
 #include "CutSequenceController.h"
 #include "JogXScreen.h"
 #include "JogYScreen.h"
+#include "MotionController.h"
+#include "SettingsManager.h"
 #include <ClearCore.h>
 #include "Config.h"
+
+extern Genie genie;
 
 AutoCutScreen::AutoCutScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
 void AutoCutScreen::onShow() {
     _feedHoldManager.reset();
+
+    // Initialize the torque control UI with Form5 display IDs
+    _torqueControlUI.init(
+        LEDDIGITS_CUT_PRESSURE_F5,      // Cut pressure display
+        LEDDIGITS_TARGET_FEEDRATE,       // Target feed rate display (if you have one on Form5)
+        IGAUGE_AUTOCUT_FEED_PRESSURE,    // Torque gauge
+        LEDDIGITS_FEED_OVERRIDE_F5       // Live feed rate display
+    );
+
+    _torqueControlUI.onShow();
     updateDisplay();
 }
 
 void AutoCutScreen::onHide() {
     AutoCutCycleManager::Instance().abortCycle();
+    _torqueControlUI.onHide();  // Clean up torque control UI
 }
 
 void AutoCutScreen::handleEvent(const genieFrame& e) {
@@ -60,12 +75,22 @@ void AutoCutScreen::startCycle() {
     float yStop = _mgr.GetJogYScreen().getCutStop();
     float yRetract = _mgr.GetJogYScreen().getRetractPosition();
 
-
     CutSequenceController::Instance().setXIncrements(xIncrements);
     CutSequenceController::Instance().setYCutStart(yStart);
     CutSequenceController::Instance().setYCutStop(yStop);
     CutSequenceController::Instance().setYRetract(yRetract);
 
+    // Notify torque control UI that cutting is active
+    _torqueControlUI.setCuttingActive(true);
+
+    // Get the adjusted values to use for the cycle
+    float cutPressure = _torqueControlUI.getCurrentCutPressure();
+    float feedRate = _torqueControlUI.getCurrentFeedRate();
+
+    // Apply these values before starting
+    MotionController::Instance().setTorqueTarget(AXIS_Y, cutPressure);
+
+    // TODO: You may need to pass feedRate to AutoCutCycleManager if it accepts it
     AutoCutCycleManager::Instance().startCycle();
     updateDisplay();
 }
@@ -82,6 +107,7 @@ void AutoCutScreen::resumeCycle() {
 
 void AutoCutScreen::cancelCycle() {
     AutoCutCycleManager::Instance().abortCycle();
+    _torqueControlUI.setCuttingActive(false);
     updateDisplay();
 }
 
@@ -91,12 +117,26 @@ void AutoCutScreen::exitFeedHold() {
 }
 
 void AutoCutScreen::adjustCutPressure() {
-    // Implement cut pressure adjustment logic here
+    _torqueControlUI.toggleCutPressureAdjustment();
+
+    // Update button states to reflect adjustment mode
+    _torqueControlUI.updateButtonStates(
+        WINBUTTON_ADJUST_CUT_PRESSURE_F5,
+        WINBUTTON_ADJUST_MAX_SPEED_F5
+    );
+
     updateDisplay();
 }
 
 void AutoCutScreen::adjustMaxSpeed() {
-    // Implement max speed adjustment logic here
+    _torqueControlUI.toggleFeedRateAdjustment();
+
+    // Update button states to reflect adjustment mode
+    _torqueControlUI.updateButtonStates(
+        WINBUTTON_ADJUST_CUT_PRESSURE_F5,
+        WINBUTTON_ADJUST_MAX_SPEED_F5
+    );
+
     updateDisplay();
 }
 
@@ -107,21 +147,35 @@ void AutoCutScreen::moveToStartPosition() {
     _rapidState = MovingYToRetract;
 }
 
-
 void AutoCutScreen::toggleSpindle() {
-    // Implement spindle on/off logic here
+    auto& motion = MotionController::Instance();
+
+    if (motion.IsSpindleRunning()) {
+        motion.StopSpindle();
+        updateButtonState(WINBUTTON_SPINDLE_F5, false, "[AutoCut] Spindle stopped", 0);
+    }
+    else {
+        // Get RPM from settings
+        float rpm = SettingsManager::Instance().settings().spindleRPM;
+
+        ClearCore::ConnectorUsb.Send("[AutoCut] Starting spindle at rpm: ");
+        ClearCore::ConnectorUsb.SendLine(rpm);
+
+        motion.StartSpindle(rpm);
+        updateButtonState(WINBUTTON_SPINDLE_F5, true, "[AutoCut] Spindle started", 0);
+    }
+
     updateDisplay();
 }
 
 void AutoCutScreen::openSettings() {
-    // Implement settings screen navigation here
-    // Example: _mgr.ShowSettings();
-    updateDisplay();
+    ScreenManager::Instance().ShowSettings();
 }
 
 void AutoCutScreen::updateDisplay() {
     auto& seq = CutSequenceController::Instance();
     auto& mgr = AutoCutCycleManager::Instance();
+    auto& motion = MotionController::Instance();
 
     // Stock Length (inches, scaled to 0.001)
     float stockLength = ScreenManager::Instance().GetCutData().stockLength;
@@ -129,7 +183,7 @@ void AutoCutScreen::updateDisplay() {
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_STOCK_LENGTH_F5, static_cast<uint16_t>(scaledStockLength));
 
     // Cutting Position (0-based: 0 at stock zero, increments as X moves)
-    float xCurrent = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
+    float xCurrent = motion.getAbsoluteAxisPosition(AXIS_X);
     int positionIndex = seq.getPositionIndexForX(xCurrent, 0.01f); // 0.01" tolerance
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUTTING_POSITION_F5, static_cast<uint16_t>(positionIndex));
 
@@ -137,20 +191,22 @@ void AutoCutScreen::updateDisplay() {
     int totalSlices = seq.getTotalCuts();
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_TOTAL_SLICES_F5, static_cast<uint16_t>(totalSlices));
 
-    // Current X Position (scaled to 0.001, if you want to display it)
-    float xPos = seq.getCurrentX();
-    int32_t scaledXPos = static_cast<int32_t>(xPos * 1000.0f);
-    // Example: genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_X_POSITION_F5, static_cast<uint16_t>(scaledXPos));
-
     // Distance to Go (Y axis: cut stop - current Y, scaled to 0.001)
     float yStop = seq.getYCutStop();
-    float yCurrent = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
+    float yCurrent = motion.getAbsoluteAxisPosition(AXIS_Y);
     float distanceToGo = yStop - yCurrent;
     if (distanceToGo < 0.0f) distanceToGo = 0.0f;
     int32_t scaledDistanceToGo = static_cast<int32_t>(distanceToGo * 1000.0f);
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F5, static_cast<uint16_t>(scaledDistanceToGo));
 
-    // (Add more as needed, e.g., thickness, feedrate, etc.)
+    // Spindle RPM
+    uint16_t rpm = motion.IsSpindleRunning() ? (uint16_t)motion.CommandedRPM() : 0;
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_F5, rpm);
+
+    // Thickness (if you have this field on Form5)
+    float thickness = ScreenManager::Instance().GetCutData().thickness;
+    int32_t scaledThickness = static_cast<int32_t>(thickness * 1000.0f);
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_THICKNESS_F5, static_cast<uint16_t>(scaledThickness));
 }
 
 void AutoCutScreen::updateButtonState(uint16_t buttonId, bool state, const char* logMessage, uint16_t delayMs) {
@@ -162,8 +218,12 @@ void AutoCutScreen::updateButtonState(uint16_t buttonId, bool state, const char*
         delay(delayMs);
     }
 }
+
 void AutoCutScreen::update() {
-    // ... existing update logic ...
+    // Update torque control UI (handles gauge updates, encoder input, etc.)
+    _torqueControlUI.update();
+
+    // Handle rapid movement state machine
     if (_rapidState == MovingYToRetract) {
         float yRetract = CutSequenceController::Instance().getYRetract();
         float yCurrent = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
@@ -181,9 +241,30 @@ void AutoCutScreen::update() {
         float xCurrent = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
         if (fabs(xCurrent - xZero) < 0.01f) { // Tolerance
             _rapidState = RapidIdle;
-            updateDisplay(); // <-- Add this line
-            // Optionally: notify user
+            updateDisplay();
         }
     }
 
+    // Check if cycle completed
+    auto& mgr = AutoCutCycleManager::Instance();
+    static bool wasInCycle = false;
+    bool isInCycle = mgr.isInCycle();
+
+    if (wasInCycle && !isInCycle) {
+        // Cycle just completed
+        _torqueControlUI.setCuttingActive(false);
+
+        // Exit any adjustment mode
+        if (_torqueControlUI.isAdjusting()) {
+            _torqueControlUI.exitAdjustmentMode();
+            _torqueControlUI.updateButtonStates(
+                WINBUTTON_ADJUST_CUT_PRESSURE_F5,
+                WINBUTTON_ADJUST_MAX_SPEED_F5
+            );
+        }
+    }
+    wasInCycle = isInCycle;
+
+    // Update display regularly
+    updateDisplay();
 }

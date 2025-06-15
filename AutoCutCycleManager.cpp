@@ -183,3 +183,10 @@ void AutoCutCycleManager::updateUI() {
     // Example: show feed hold, exit, and return button states
     // This should be implemented to match your UI framework
 }
+
+bool AutoCutCycleManager::isInCycle() const {
+    // Consider "in cycle" as any state except Idle, Complete, or Error
+    return _state != AutoCutState::Idle &&
+           _state != AutoCutState::Complete &&
+           _state != AutoCutState::Error;
+}

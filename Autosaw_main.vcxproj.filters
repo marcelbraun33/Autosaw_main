@@ -136,6 +136,9 @@
     <ClCompile Include="SpindleLoadMeter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TorqueControlUI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.Autosaw_main.vsarduino.h">
@@ -247,6 +250,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SpindleLoadMeter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TorqueControlUI.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
