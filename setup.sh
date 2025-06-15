@@ -9,6 +9,12 @@ BRANCH=${2:-master}
 PROJECT_DIR=${REPO_URL##*/}
 PROJECT_DIR=${PROJECT_DIR%.git}
 
+# Allow overriding the Arduino data directory. This lets pre-downloaded
+# board packages be used without accessing the network.
+ARDUINO_DATA_PATH=${ARDUINO_DATA_PATH:-"$PWD/arduino_data"}
+export ARDUINO_DATA_PATH
+mkdir -p "$ARDUINO_DATA_PATH" "$ARDUINO_DATA_PATH/staging" "$PWD/Arduino"
+
 # Clone the repository if it doesn't exist
 if [ ! -d "$PROJECT_DIR" ]; then
     git clone "$REPO_URL" -b "$BRANCH" "$PROJECT_DIR"
@@ -28,16 +34,20 @@ cat <<EOCONF > arduino-cli.yaml
 board_manager:
   additional_urls:
     - https://teknic-inc.github.io/clearcore/package_ClearCore_index.json
+directories:
+  data: "$ARDUINO_DATA_PATH"
+  downloads: "$ARDUINO_DATA_PATH/staging"
+  user: "$PWD/Arduino"
 EOCONF
 
-arduino-cli core update-index
-arduino-cli core install ClearCore:sam@1.7.0
+arduino-cli --config-file arduino-cli.yaml core update-index
+arduino-cli --config-file arduino-cli.yaml core install ClearCore:sam@1.7.0
 
 # Install required libraries
-arduino-cli lib install ClearCore genieArduinoDEV || true
+arduino-cli --config-file arduino-cli.yaml lib install ClearCore genieArduinoDEV || true
 
 # Compile the project
-arduino-cli compile --fqbn ClearCore:sam:ClearCore Autosaw_main.ino
+arduino-cli --config-file arduino-cli.yaml compile --fqbn ClearCore:sam:ClearCore Autosaw_main.ino
 
 # Uncomment the line below to upload (requires connected board)
 # arduino-cli upload -p /dev/ttyACM0 --fqbn ClearCore:sam:ClearCore Autosaw_main.ino
