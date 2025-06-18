@@ -83,6 +83,7 @@
     <ClCompile Include="AutoCutCycleManager.cpp" />
     <ClCompile Include="AutoCutScreen.cpp" />
     <ClCompile Include="AutosawController.cpp" />
+    <ClCompile Include="CutPositionData.cpp" />
     <ClCompile Include="CutSequenceController.cpp" />
     <ClCompile Include="DynamicFeed.cpp" />
     <ClCompile Include="EncoderPositionTracker.cpp" />
@@ -130,6 +131,7 @@
     <ClInclude Include="Common.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="CutData.h" />
+    <ClInclude Include="CutPositionData.h" />
     <ClInclude Include="CutSequenceController.h" />
     <ClInclude Include="DynamicFeed.h" />
     <ClInclude Include="EncoderPositionTracker.h" />

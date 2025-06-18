@@ -16,8 +16,19 @@ void AutoCutCycleManager::setup() {
 }
 
 void AutoCutCycleManager::startCycle() {
-    CutSequenceController::Instance().reset();
-    setState(AutoCutState::SpindleStart);
+    // Validate parameters
+    if (!CutPositionData::Instance().isReadyForSequence()) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Parameters not ready");
+        return;
+    }
+    
+    // Build the sequence from current parameters
+    CutPositionData::Instance().buildCutSequence();
+    
+    // Start the sequence
+    if (CutSequenceController::Instance().startSequence()) {
+        _state = STATE_IN_CYCLE;
+    }
 }
 
 void AutoCutCycleManager::pauseCycle() {
@@ -68,7 +79,15 @@ void AutoCutCycleManager::exitFeedHold() {
 }
 
 void AutoCutCycleManager::update() {
-    executeState();
+    // Let the sequence controller handle everything
+    CutSequenceController::Instance().update();
+    
+    // Update position data for display
+    auto& motion = MotionController::Instance();
+    CutPositionData::Instance().updateCurrentPosition(
+        motion.getAbsoluteAxisPosition(AXIS_X),
+        motion.getAbsoluteAxisPosition(AXIS_Y)
+    );
 }
 
 void AutoCutCycleManager::setState(AutoCutState newState) {

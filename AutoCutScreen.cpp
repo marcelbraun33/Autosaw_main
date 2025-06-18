@@ -8,6 +8,7 @@
 #include "SettingsManager.h"
 #include <ClearCore.h>
 #include "Config.h"
+#include "CutPositionData.h" // <-- Add this include
 
 extern Genie genie;
 
@@ -174,39 +175,36 @@ void AutoCutScreen::openSettings() {
 
 void AutoCutScreen::updateDisplay() {
     auto& seq = CutSequenceController::Instance();
-    auto& mgr = AutoCutCycleManager::Instance();
-    auto& motion = MotionController::Instance();
+    auto& posData = CutPositionData::Instance();
 
-    // Stock Length (inches, scaled to 0.001)
-    float stockLength = ScreenManager::Instance().GetCutData().stockLength;
-    int32_t scaledStockLength = static_cast<int32_t>(stockLength * 1000.0f);
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_STOCK_LENGTH_F5, static_cast<uint16_t>(scaledStockLength));
+    // Show current cut number (1-based)
+    int currentCut = seq.getCurrentOrderIndex() + 1;
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUTTING_POSITION_F5, currentCut);
 
-    // Cutting Position (0-based: 0 at stock zero, increments as X moves)
-    float xCurrent = motion.getAbsoluteAxisPosition(AXIS_X);
-    int positionIndex = seq.getPositionIndexForX(xCurrent, 0.01f); // 0.01" tolerance
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUTTING_POSITION_F5, static_cast<uint16_t>(positionIndex));
+    // Show total cuts
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_TOTAL_SLICES_F5, seq.getTotalCuts());
 
-    // Total Slices/Positions (from CutSequenceController)
-    int totalSlices = seq.getTotalCuts();
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_TOTAL_SLICES_F5, static_cast<uint16_t>(totalSlices));
+    // Show progress percentage
+    float progress = seq.getProgressPercent();
+    // You could add a progress bar or percentage display
 
-    // Distance to Go (Y axis: cut stop - current Y, scaled to 0.001)
-    float yStop = seq.getYCutStop();
-    float yCurrent = motion.getAbsoluteAxisPosition(AXIS_Y);
-    float distanceToGo = yStop - yCurrent;
-    if (distanceToGo < 0.0f) distanceToGo = 0.0f;
-    int32_t scaledDistanceToGo = static_cast<int32_t>(distanceToGo * 1000.0f);
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F5, static_cast<uint16_t>(scaledDistanceToGo));
-
-    // Spindle RPM
-    uint16_t rpm = motion.IsSpindleRunning() ? (uint16_t)motion.CommandedRPM() : 0;
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_F5, rpm);
-
-    // Thickness (if you have this field on Form5)
-    float thickness = ScreenManager::Instance().GetCutData().thickness;
-    int32_t scaledThickness = static_cast<int32_t>(thickness * 1000.0f);
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_THICKNESS_F5, static_cast<uint16_t>(scaledThickness));
+    // Show state-specific information
+    switch (seq.getState()) {
+        case CutSequenceController::SEQUENCE_CUTTING: {
+            // Show distance to go in current cut
+            float distanceToGo = posData.getCutEndPosition() - posData.getCurrentY();
+            if (distanceToGo < 0) distanceToGo = 0;
+            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F5, 
+                static_cast<uint16_t>(distanceToGo * 1000));
+            break;
+        }
+        case CutSequenceController::SEQUENCE_MOVING_TO_X:
+            // Could show "Moving to position X"
+            break;
+        case CutSequenceController::SEQUENCE_COMPLETED:
+            // Show completion message or flash indicator
+            break;
+    }
 }
 
 void AutoCutScreen::updateButtonState(uint16_t buttonId, bool state, const char* logMessage, uint16_t delayMs) {

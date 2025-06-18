@@ -139,6 +139,9 @@
     <ClCompile Include="TorqueControlUI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CutPositionData.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.Autosaw_main.vsarduino.h">
@@ -254,6 +257,9 @@
     </ClInclude>
     <ClInclude Include="TorqueControlUI.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CutPositionData.h">
+      <Filter>Header Files\Core</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

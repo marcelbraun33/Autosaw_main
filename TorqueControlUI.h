@@ -77,8 +77,8 @@ private:
     bool _isCuttingActive;
 
     // Constants for adjustment
-    static constexpr float CUT_PRESSURE_INCREMENT = 0.5f;
-    static constexpr float FEED_RATE_INCREMENT = 0.01f;
+    static constexpr float CUT_PRESSURE_INCREMENT = 0.1f;  // Changed from 0.5f to 0.1f (1/10th per click)
+    static constexpr float FEED_RATE_INCREMENT = 0.01f;    // Keeping at 0.01f (1% per click)
     static constexpr float MIN_CUT_PRESSURE = 10.0f;
     static constexpr float MAX_CUT_PRESSURE = 100.0f;
     static constexpr float MIN_FEED_RATE = 0.1f;
