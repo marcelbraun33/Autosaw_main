@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿// Config.h - Updated with Form9 definitions
+#pragma once
 
 #include <ClearCore.h>
 
@@ -64,6 +65,7 @@
 #define FORM_JOG_Y          6   // Form6 (Jog Table)
 #define FORM_MANUAL_MODE    7   // Form7
 #define FORM_JOG_Z          8   // Form8 (Rotary)
+#define FORM_SETUP_AUTOCUT  9   // Form9 (Setup Autocut) - NEW
 
 // ─── Genie Object Definitions ────────────────────────────────────────────────────
 
@@ -86,7 +88,6 @@
 #define LEDDIGITS_TARGET_FEEDRATE          32  // Form2 - Leddigits32
 #define LED_READY                          6   // Form2 - Led6
 
-
 // Form3 (Settings)
 #define LEDDIGITS_DIAMETER_SETTINGS        8   // Form3 - Leddigits8
 #define LEDDIGITS_THICKNESS_SETTINGS       9   // Form3 - Leddigits9
@@ -104,8 +105,9 @@
 #define LEDDIGITS_DISTANCE_TO_GO_F5       18   // Form5 - Leddigits18
 #define LEDDIGITS_CUT_PRESSURE_F5         30   // Form5 - Leddigits30
 #define LEDDIGITS_TOTAL_SLICES_F5         31   // Form5 - Leddigits31
+#define LEDDIGITS_JOB_REMAINING_F5        38   // Form5 - Leddigits38 (Job remaining cuts)
 #define WINBUTTON_ADJUST_MAX_SPEED_F5     45   // Form5 - Winbutton45 (Adjust Max Speed f5)
-
+#define WINBUTTON_SETUP_AUTOCUT_F5        46   // Form5 - Winbutton46 (Setup Autocut Button)
 
 // Form6 (Jog Table Y)
 #define LEDDIGITS_STOCK_END_Y             19   // Form6 - Leddigits19
@@ -120,6 +122,13 @@
 
 // Form8 (Rotary Z)
 #define LEDDIGITS_ROTARY_RPM              24   // Form8 - Leddigits24
+
+// Form9 (Setup Autocut) - NEW
+#define LEDDIGITS_TOTAL_POSITIONS_F9      33   // Form9 - Leddigits33
+#define LEDDIGITS_START_POSITION_F9       34   // Form9 - Leddigits34
+#define LEDDIGITS_THICKNESS_F9            35   // Form9 - Leddigits35
+#define LEDDIGITS_STOCK_LENGTH_F9         36   // Form9 - Leddigits36
+#define LEDDIGITS_SLICES_TO_CUT_F9        37   // Form9 - Leddigits37
 
 // LED Indicators
 #define LED_FEED_RATE_OFFSET_F2           2   // Form2
@@ -183,7 +192,6 @@
 #define WINBUTTON_ADJUST_CUT_PRESSURE_F5  43   // Form5 - Winbutton43
 #define WINBUTTON_MOVE_TO_START_POSITION  44   // Form5 - Winbutton44
 
-
 // Form6 (Jog Table Y)
 #define WINBUTTON_CAPTURE_CUT_END_F6      27   // Form6 - Winbutton27
 #define WINBUTTON_ACTIVATE_JOG_Y_F6       28   // Form6 - Winbutton28
@@ -195,7 +203,6 @@
 #define WINBUTTON_JOG_TO_RETRACT          49   // Form6 - Winbutton49
 
 // Form7 (Manual Mode)
-//#define WINBUTTON_ACTIVATE_PENDANT        32   // Form7 - Winbutton32
 #define WINBUTTON_ACTIVATE_HOMING         33   // Form7 - Winbutton33
 #define WINBUTTON_SPINDLE_TOGGLE_F7       31   // Form7 - Winbutton31
 #define WINBUTTON_SETTINGS_F7             35   // Form7 - Winbutton35
@@ -204,6 +211,9 @@
 #define WINBUTTON_SET_RPM_F8              36   // Form8 - Winbutton36
 #define WINBUTTON_ENABLE_F8               37   // Form8 - Winbutton37
 
+// Form9 (Setup Autocut) - NEW
+#define WINBUTTON_SETTINGS_F9             52   // Form9 - Winbutton52
+#define WINBUTTON_SLICES_TO_CUT_F9        53   // Form9 - Winbutton53
 
 // === EncoderPositionTracker Configuration ===
 // This section defines constants for the absolute position tracking system

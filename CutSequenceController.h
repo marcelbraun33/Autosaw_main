@@ -1,11 +1,12 @@
-// CutSequenceController.h - Enhanced version building on existing code
+// CutSequenceController.h - Enhanced with batch cutting and persistence
 #pragma once
 #include <vector>
 #include <cmath>
+#include <stdint.h>  // Add this include for uint32_t
 
 class CutSequenceController {
 public:
-    // Add state machine for sequence execution
+    // State machine for sequence execution
     enum SequenceState {
         SEQUENCE_IDLE,
         SEQUENCE_MOVING_TO_RETRACT,
@@ -16,15 +17,6 @@ public:
         SEQUENCE_COMPLETED,
         SEQUENCE_PAUSED,
         SEQUENCE_ABORTED
-    };
-
-    // Add cutting patterns
-    enum CutPattern {
-        PATTERN_LEFT_TO_RIGHT,    // Your current default
-        PATTERN_RIGHT_TO_LEFT,
-        PATTERN_ALTERNATING,
-        PATTERN_CENTER_OUT,
-        PATTERN_OUTSIDE_IN
     };
 
     static CutSequenceController& Instance();
@@ -58,10 +50,23 @@ public:
     int getPositionIndexForX(float x, float tolerance = 0.001f) const;
     float getXForIndex(int idx) const;
 
-    // === NEW METHODS FOR STATE MACHINE ===
-    // Sequence control
-    bool startSequence();
-    void update();  // Call this from main loop
+    // === NEW BATCH CUTTING METHODS ===
+    // Batch control
+    void setLastCompletedPosition(int position);
+    int getLastCompletedPosition() const { return _lastCompletedPosition; }
+    void setBatchSize(int size);
+    int getBatchSize() const { return _batchSize; }
+    int getRemainingPositions() const;
+    int getMaxBatchSize() const;
+
+    // Position persistence
+    void savePositionState();
+    void loadPositionState();
+    void clearPositionState();
+
+    // Batch sequence control
+    bool startBatchSequence();
+    void update();
     void pause();
     void resume();
     void abort();
@@ -71,22 +76,12 @@ public:
     bool isActive() const;
     bool isPaused() const { return _state == SEQUENCE_PAUSED; }
 
-    // Pattern control
-    void setCutPattern(CutPattern pattern);
-    CutPattern getCutPattern() const { return _cutPattern; }
-
     // Progress tracking
-    float getProgressPercent() const;
-    int getCompletedCount() const { return _completedCount; }
-    void markCurrentAsCompleted();
+    float getBatchProgressPercent() const;
+    int getBatchCompletedCount() const { return _batchCompletedCount; }
 
-    // Cut completion tracking
-    bool isCutCompleted(int index) const;
-    void resetCompletionStatus();
-
-    // Get actual cut order based on pattern
-    const std::vector<int>& getCutOrder() const { return _cutOrder; }
-    int getCurrentOrderIndex() const { return _currentOrderIndex; }
+    // Get target X for a given batch position (0-based within batch)
+    float getBatchTargetX(int batchPosition) const;
 
 private:
     CutSequenceController();
@@ -99,22 +94,24 @@ private:
     int _currentIndex = 0;
     float _currentXPosition = 0.0f;
 
-    // === NEW MEMBERS FOR STATE MACHINE ===
-    SequenceState _state = SEQUENCE_IDLE;
-    SequenceState _pausedState = SEQUENCE_IDLE;  // State to return to after pause
-    CutPattern _cutPattern = PATTERN_LEFT_TO_RIGHT;
+    // === NEW BATCH MEMBERS ===
+    int _lastCompletedPosition = 0;  // Last position that was cut (1-based, 0 = none)
+    int _batchSize = 1;              // Number of cuts in current batch
+    int _batchStartPosition = 0;     // Starting position for current batch (0-based)
+    int _batchCompletedCount = 0;    // Cuts completed in current batch
 
-    // Cut order and completion tracking
-    std::vector<int> _cutOrder;        // Indices in the order to cut
-    std::vector<bool> _cutCompleted;   // Track which cuts are done
-    int _currentOrderIndex = 0;        // Current position in _cutOrder
-    int _completedCount = 0;
+    // State machine
+    SequenceState _state = SEQUENCE_IDLE;
+    SequenceState _pausedState = SEQUENCE_IDLE;
 
     // Motion tracking
     float _targetX = 0.0f;
     float _targetY = 0.0f;
 
-    // State update methods
+    // Persistence key for EEPROM - only declare once
+    static constexpr uint32_t POSITION_STATE_KEY = 0x50534354; // "PSCT"
+
+    // State machine methods
     void updateMovingToRetract();
     void updateMovingToX();
     void updateMovingToStart();
@@ -122,7 +119,6 @@ private:
     void updateRetracting();
 
     // Helper methods
-    void buildCutOrder();
     bool isAtPosition(float target, float current, float tolerance = 0.01f);
-    void moveToNextCut();
+    void moveToNextBatchCut();
 };

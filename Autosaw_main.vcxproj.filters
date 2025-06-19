@@ -142,6 +142,9 @@
     <ClCompile Include="CutPositionData.cpp">
       <Filter>Source Files\Core</Filter>
     </ClCompile>
+    <ClCompile Include="SetupAutocutScreen.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.Autosaw_main.vsarduino.h">
@@ -260,6 +263,9 @@
     </ClInclude>
     <ClInclude Include="CutPositionData.h">
       <Filter>Header Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="SetupAutocutScreen.h">
+      <Filter>Header Files\Screens</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

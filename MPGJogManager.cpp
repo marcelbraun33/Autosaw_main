@@ -3,6 +3,10 @@
 #include "MotionController.h"
 #include "Config.h"
 #include <ClearCore.h>
+#include "SetupAutocutScreen.h"
+
+// Initialize the global pointer to nullptr
+SetupAutocutScreen* g_setupAutocutScreen = nullptr;
 
 MPGJogManager& MPGJogManager::Instance() {
     static MPGJogManager inst;
@@ -105,15 +109,20 @@ float MPGJogManager::getAxisIncrement() const {
     }
 }
 
-
-// MPGJogManager.cpp - update the onEncoderDelta method
-
-// Update MPGJogManager.cpp
-// Update onEncoderDelta method to use absolute positions from encoder
-
 void MPGJogManager::onEncoderDelta(int deltaClicks) {
     if (!_initialized || !_enabled || deltaClicks == 0)
         return;
+
+    // NEW: Also notify the SetupAutocutScreen if it's active
+    if (g_setupAutocutScreen != nullptr) {
+        g_setupAutocutScreen->onEncoderChanged(deltaClicks);
+        
+        // If we're in setup autocut mode and the screen is processing
+        // encoder input, don't perform normal jog movement
+        if (g_setupAutocutScreen->isEditingSlices()) {
+            return;
+        }
+    }
 
     // inches per click for each range
     float stepInches;
@@ -158,8 +167,6 @@ void MPGJogManager::onEncoderDelta(int deltaClicks) {
         velocityScale
     );
 }
-
-
 
 void MPGJogManager::update() {
     // Only update the range from inputs if necessary

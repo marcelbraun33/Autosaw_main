@@ -1,10 +1,14 @@
-
-
-// Enhanced CutPositionData.cpp - Add these implementations
+// Enhanced CutPositionData.cpp
 #include "CutPositionData.h"
 #include "CutSequenceController.h"
 #include "SettingsManager.h"
 #include <ClearCore.h>
+
+// Add singleton instance accessor
+CutPositionData& CutPositionData::Instance() {
+    static CutPositionData instance;
+    return instance;
+}
 
 void CutPositionData::buildCutSequence() {
     auto& seq = CutSequenceController::Instance();

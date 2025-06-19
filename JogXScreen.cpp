@@ -237,6 +237,10 @@ void JogXScreen::handleEvent(const genieFrame& e) {
             cutData.totalSlices = static_cast<int>(roundf(tempSlices));
             ui.unbindField();
             showButtonSafe(WINBUTTON_SET_TOTAL_SLICES, 0);
+            
+            // RESET POSITION TRACKING when total slices changes
+            CutSequenceController::Instance().reset();
+            ClearCore::ConnectorUsb.SendLine("Position tracking reset due to total slices change");
         }
         else if (!ui.isEditing()) {
             if (mpg.isEnabled()) {
@@ -264,6 +268,10 @@ void JogXScreen::captureZero() {
         ClearCore::ConnectorUsb.Send("Zero position captured (absolute): ");
         ClearCore::ConnectorUsb.SendLine(cutData.positionZero);
         showButtonSafe(WINBUTTON_CAPTURE_ZERO, 1);
+        
+        // RESET POSITION TRACKING when zero changes
+        CutSequenceController::Instance().reset();
+        ClearCore::ConnectorUsb.SendLine("Position tracking reset due to zero position change");
     }
     else {
         ClearCore::ConnectorUsb.SendLine("Zero offset removed, reverting to machine coordinates");
@@ -305,6 +313,11 @@ void JogXScreen::captureStockLength() {
     cutData.stockLength = display;
     showButtonSafe(WINBUTTON_CAPTURE_STOCK_LENGTH, 1);
     delay(200); showButtonSafe(WINBUTTON_CAPTURE_STOCK_LENGTH, 0);
+    
+    // RESET POSITION TRACKING when stock length changes
+    CutSequenceController::Instance().reset();
+    ClearCore::ConnectorUsb.SendLine("Position tracking reset due to stock length change");
+    
     updateStockLengthDisplay();
     calculateTotalSlices();
     updateTotalSlicesDisplay();
@@ -366,9 +379,13 @@ void JogXScreen::setIncrement(float newIncrement) {
     ClearCore::ConnectorUsb.Send("Calculated total slices: ");
     ClearCore::ConnectorUsb.SendLine(cutData.totalSlices);
 
+    // RESET POSITION TRACKING when increment changes
+    CutSequenceController::Instance().reset();
+    ClearCore::ConnectorUsb.SendLine("Position tracking reset due to increment change");
+
     updateIncrementDisplay();
     updateThicknessDisplay();
-    updateTotalSlicesDisplay(); // This will now also rebuild CutSequenceController
+    updateTotalSlicesDisplay();
     updateSliceCounterDisplay();
 
     ClearCore::ConnectorUsb.SendLine("--------- SET INCREMENT COMPLETE ---------");

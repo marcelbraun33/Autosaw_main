@@ -1,3 +1,4 @@
+// AutoCutCycleManager.cpp - Updated for batch cutting
 #include "AutoCutCycleManager.h"
 #include "ClearCore.h"
 
@@ -16,26 +17,20 @@ void AutoCutCycleManager::setup() {
 }
 
 void AutoCutCycleManager::startCycle() {
-    // Validate parameters
-    if (!CutPositionData::Instance().isReadyForSequence()) {
-        ClearCore::ConnectorUsb.SendLine("[AutoCut] Parameters not ready");
+    // Use batch sequence instead of reset
+    if (!CutSequenceController::Instance().startBatchSequence()) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCutCycle] Failed to start batch sequence");
         return;
     }
-    
-    // Build the sequence from current parameters
-    CutPositionData::Instance().buildCutSequence();
-    
-    // Start the sequence
-    if (CutSequenceController::Instance().startSequence()) {
-        _state = STATE_IN_CYCLE;
-    }
+
+    setState(AutoCutState::SpindleStart);
 }
 
 void AutoCutCycleManager::pauseCycle() {
     if (_state == AutoCutState::DynamicFeed) {
         _isFeedHold = true;
         setState(AutoCutState::Paused);
-        // Optionally: MotionController::Instance().pauseFeed();
+        CutSequenceController::Instance().pause();
         updateUI();
     }
 }
@@ -44,13 +39,14 @@ void AutoCutCycleManager::resumeCycle() {
     if (_state == AutoCutState::Paused) {
         _isFeedHold = false;
         setState(AutoCutState::DynamicFeed);
-        // Optionally: MotionController::Instance().resumeFeed();
+        CutSequenceController::Instance().resume();
         updateUI();
     }
 }
 
 void AutoCutCycleManager::abortCycle() {
     stopSpindle();
+    CutSequenceController::Instance().abort();
     setState(AutoCutState::Idle);
     _isFeedHold = false;
     _isReturningToStart = false;
@@ -72,22 +68,88 @@ void AutoCutCycleManager::exitFeedHold() {
     if (_state == AutoCutState::Paused && !_isReturningToStart) {
         _isReturningToStart = true;
         setState(AutoCutState::Returning);
-        // Move Y back to _feedStartY (the position before feed started)
-        moveToY(_feedStartY);
+
+        // Abort the sequence controller
+        CutSequenceController::Instance().abort();
+
+        // Move Y back to retract position
+        float yRetract = CutSequenceController::Instance().getYRetract();
+        moveToY(yRetract);
         updateUI();
     }
 }
 
 void AutoCutCycleManager::update() {
-    // Let the sequence controller handle everything
+    // Let CutSequenceController handle its own state machine
     CutSequenceController::Instance().update();
-    
-    // Update position data for display
-    auto& motion = MotionController::Instance();
-    CutPositionData::Instance().updateCurrentPosition(
-        motion.getAbsoluteAxisPosition(AXIS_X),
-        motion.getAbsoluteAxisPosition(AXIS_Y)
-    );
+
+    // Monitor sequence state and update our state accordingly
+    auto seqState = CutSequenceController::Instance().getState();
+
+    switch (seqState) {
+    case CutSequenceController::SEQUENCE_IDLE:
+        if (_state != AutoCutState::Idle && _state != AutoCutState::SpindleStart) {
+            setState(AutoCutState::Idle);
+        }
+        break;
+
+    case CutSequenceController::SEQUENCE_MOVING_TO_RETRACT:
+    case CutSequenceController::SEQUENCE_MOVING_TO_X:
+    case CutSequenceController::SEQUENCE_MOVING_TO_START:
+        if (_state != AutoCutState::MoveToX && _state != AutoCutState::MoveToCutStartY) {
+            setState(AutoCutState::MoveToX);
+        }
+        break;
+
+    case CutSequenceController::SEQUENCE_CUTTING:
+        if (_state != AutoCutState::DynamicFeed && _state != AutoCutState::Paused) {
+            setState(AutoCutState::DynamicFeed);
+        }
+        break;
+
+    case CutSequenceController::SEQUENCE_RETRACTING:
+        if (_state != AutoCutState::RetractY) {
+            setState(AutoCutState::RetractY);
+        }
+        break;
+
+    case CutSequenceController::SEQUENCE_COMPLETED:
+        setState(AutoCutState::Complete);
+        stopSpindle();
+        break;
+
+    case CutSequenceController::SEQUENCE_PAUSED:
+        if (_state != AutoCutState::Paused) {
+            setState(AutoCutState::Paused);
+        }
+        break;
+
+    case CutSequenceController::SEQUENCE_ABORTED:
+        setState(AutoCutState::Idle);
+        stopSpindle();
+        break;
+    }
+
+    // Handle spindle start separately
+    if (_state == AutoCutState::SpindleStart) {
+        startSpindle();
+        _spindleStarted = true;
+        setState(AutoCutState::WaitForSpindle);
+    }
+    else if (_state == AutoCutState::WaitForSpindle) {
+        if (ClearCore::TimingMgr.Milliseconds() - _stateStartTime > 500) {
+            // Let sequence controller take over
+            setState(AutoCutState::MoveToRetractY);
+        }
+    }
+    else if (_state == AutoCutState::Returning && _isReturningToStart) {
+        // Check if at retract position
+        float yRetract = CutSequenceController::Instance().getYRetract();
+        if (MotionController::Instance().isAxisAtPosition(AXIS_Y, yRetract)) {
+            _isReturningToStart = false;
+            setState(AutoCutState::Idle);
+        }
+    }
 }
 
 void AutoCutCycleManager::setState(AutoCutState newState) {
@@ -97,85 +159,12 @@ void AutoCutCycleManager::setState(AutoCutState newState) {
 }
 
 void AutoCutCycleManager::executeState() {
-    auto& seq = CutSequenceController::Instance();
-    auto& motion = MotionController::Instance();
-
-    switch (_state) {
-    case AutoCutState::Idle:
-        // Wait for start
-        break;
-    case AutoCutState::SpindleStart:
-        startSpindle();
-        _spindleStarted = true;
-        setState(AutoCutState::WaitForSpindle);
-        break;
-    case AutoCutState::WaitForSpindle:
-        if (ClearCore::TimingMgr.Milliseconds() - _stateStartTime > 500) {
-            setState(AutoCutState::MoveToRetractY);
-        }
-        break;
-    case AutoCutState::MoveToRetractY:
-        moveToY(seq.getYRetract());
-        if (motion.isAxisAtPosition(AXIS_Y, seq.getYRetract())) {
-            setState(AutoCutState::MoveToX);
-        }
-        break;
-    case AutoCutState::MoveToX:
-        moveToX(seq.getCurrentX());
-        if (motion.isAxisAtPosition(AXIS_X, seq.getCurrentX())) {
-            setState(AutoCutState::MoveToCutStartY);
-        }
-        break;
-    case AutoCutState::MoveToCutStartY:
-        moveToY(seq.getYCutStart());
-        if (motion.isAxisAtPosition(AXIS_Y, seq.getYCutStart())) {
-            _feedStartY = seq.getYCutStart();
-            setState(AutoCutState::DynamicFeed);
-        }
-        break;
-    case AutoCutState::DynamicFeed:
-        startDynamicFeed(seq.getYCutStop());
-        // Wait for feed to complete or feed hold/abort
-        if (_isFeedHold) {
-            setState(AutoCutState::Paused);
-        }
-        else if (motion.isFeedComplete()) {
-            setState(AutoCutState::RetractY);
-        }
-        break;
-    case AutoCutState::RetractY:
-        moveToY(seq.getYRetract());
-        if (motion.isAxisAtPosition(AXIS_Y, seq.getYRetract())) {
-            if (seq.advance()) {
-                setState(AutoCutState::MoveToX);
-            }
-            else {
-                setState(AutoCutState::Complete);
-            }
-        }
-        break;
-    case AutoCutState::Returning:
-        // Wait for Y to reach _feedStartY
-        if (motion.isAxisAtPosition(AXIS_Y, _feedStartY)) {
-            _isReturningToStart = false;
-            setState(AutoCutState::Idle);
-        }
-        break;
-    case AutoCutState::Complete:
-        stopSpindle();
-        setState(AutoCutState::Idle);
-        break;
-    case AutoCutState::Paused:
-        // Remain paused until resume or exitFeedHold
-        break;
-    case AutoCutState::Error:
-        // Handle error
-        break;
-    }
+    // This method is now mostly replaced by monitoring CutSequenceController
+    // Keep for compatibility but most logic moved to update()
 }
 
 void AutoCutCycleManager::startSpindle() {
-    // Example: Start spindle at desired RPM
+    // Start spindle at desired RPM
     MotionController::Instance().StartSpindle(MotionController::Instance().getSpindleRPM());
 }
 
@@ -192,20 +181,23 @@ void AutoCutCycleManager::moveToX(float pos) {
 }
 
 void AutoCutCycleManager::startDynamicFeed(float yStop) {
-    // Start dynamic feed (torque/pressure controlled) to yStop
-    // Provide a default initialVelocityScale (e.g., 1.0f)
+    // This is now handled by CutSequenceController
+    // Keep for compatibility
     MotionController::Instance().startTorqueControlledFeed(AXIS_Y, yStop, 1.0f);
 }
 
 void AutoCutCycleManager::updateUI() {
     // Update UI elements/buttons/LEDs as needed
-    // Example: show feed hold, exit, and return button states
     // This should be implemented to match your UI framework
 }
 
 bool AutoCutCycleManager::isInCycle() const {
-    // Consider "in cycle" as any state except Idle, Complete, or Error
-    return _state != AutoCutState::Idle &&
-           _state != AutoCutState::Complete &&
-           _state != AutoCutState::Error;
+    // Check both our state and sequence controller state
+    bool ourState = (_state != AutoCutState::Idle &&
+        _state != AutoCutState::Complete &&
+        _state != AutoCutState::Error);
+
+    bool seqState = CutSequenceController::Instance().isActive();
+
+    return ourState || seqState;
 }

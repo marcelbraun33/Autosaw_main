@@ -1,5 +1,4 @@
-﻿
-// === ScreenManager.h ===
+﻿// ScreenManager.h - Updated with SetupAutocutScreen
 #pragma once
 #include <genieArduinoDEV.h>
 #include "HomingScreen.h"
@@ -11,10 +10,11 @@
 #include "JogZScreen.h"
 #include "SemiAutoScreen.h"
 #include "AutoCutScreen.h"
+#include "SetupAutocutScreen.h"  // NEW
 #include "CutData.h"
 
-
 class HomingScreen;
+
 class ScreenManager {
 public:
     static ScreenManager& Instance();
@@ -32,8 +32,9 @@ public:
     void ShowJogZ();
     void ShowSemiAuto();
     void ShowAutoCut();
+    void ShowSetupAutocut();  // NEW
     void Back();
-   
+
     void clearAllLeds();
     JogXScreen& GetJogXScreen() { return _jogXScreen; }
     JogYScreen& GetJogYScreen() { return _jogYScreen; }
@@ -56,6 +57,8 @@ private:
     JogZScreen       _jogZScreen;
     SemiAutoScreen   _semiAutoScreen;
     AutoCutScreen    _autoCutScreen;
+    SetupAutocutScreen _setupAutocutScreen;  // NEW
+
     Screen* _currentScreen = nullptr;
     CutData _cutData;
 };

@@ -1,9 +1,14 @@
-// === MPGJogManager.h ===
+ // === MPGJogManager.h ===
 #pragma once
 
 #include <ClearCore.h>
 #include "Config.h"
 #include "MotionController.h"
+
+// Forward declaration for SetupAutocutScreen
+class SetupAutocutScreen;
+// Global reference to the SetupAutocutScreen for encoder callbacks
+extern SetupAutocutScreen* g_setupAutocutScreen;
 
 enum AxisId;  // Forward declaration
 /// Handles MPG encoder-based jog movements for the selected axis
@@ -30,10 +35,7 @@ public:
     /// Enable or disable MPG-jog handling
     void setEnabled(bool en);
     bool isEnabled() const;
-    // Add this to MPGJogManager.h
     float getAxisIncrement() const;
-
- 
 
 private:
     MPGJogManager();
