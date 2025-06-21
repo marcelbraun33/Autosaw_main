@@ -214,6 +214,7 @@
 // Form9 (Setup Autocut) - NEW
 #define WINBUTTON_SETTINGS_F9             52   // Form9 - Winbutton52
 #define WINBUTTON_SLICES_TO_CUT_F9        53   // Form9 - Winbutton53
+#define WINBUTTON_RETURN_TO_AUTOCUT_F9    54   // Form9 - Winbutton54
 
 // === EncoderPositionTracker Configuration ===
 // This section defines constants for the absolute position tracking system

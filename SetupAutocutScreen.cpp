@@ -61,12 +61,16 @@ void SetupAutocutScreen::handleEvent(const genieFrame& e) {
     switch (e.reportObject.object) {
     case GENIE_OBJ_WINBUTTON:
         switch (e.reportObject.index) {
-        case WINBUTTON_SLICES_TO_CUT_F9:
+        case WINBUTTON_SLICES_TO_CUT_F9:            // 53
             setSlicesToCut();
             break;
 
-        case WINBUTTON_SETTINGS_F9:
+        case WINBUTTON_SETTINGS_F9:                 // 52
             ScreenManager::Instance().ShowSettings();
+            break;
+
+        case WINBUTTON_RETURN_TO_AUTOCUT_F9:        // 54 - Return To Autocut
+            ScreenManager::Instance().ShowAutoCut();
             break;
         }
         break;
