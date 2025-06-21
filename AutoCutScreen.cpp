@@ -207,29 +207,29 @@ void AutoCutScreen::adjustMaxSpeed() {
 }
 
 void AutoCutScreen::moveToStartPosition() {
-    ClearCore::ConnectorUsb.SendLine("[AutoCut] Move to Start Position (Rapid to Zero)");
+    ClearCore::ConnectorUsb.SendLine("[AutoCut] Move to Start Position (Rapid to Job Zero)");
 
     // Visual feedback
     updateButtonState(WINBUTTON_MOVE_TO_START_POSITION, true, nullptr, 0);
 
-    // Get Y retract position from CutSequenceController or JogYScreen
-    float yRetract = 0.0f;
+    // Get Y job zero position using the same calculation as JogY screen
+    auto& cutData = _mgr.GetCutData();
+    float yHomePos = 0.0f;
+    float desiredRetractPos = cutData.cutStartPoint - cutData.retractDistance;
+    if (desiredRetractPos < yHomePos) {
+        desiredRetractPos = yHomePos;
+    }
 
-    // First try to get from CutSequenceController if it's been set up
-    if (CutSequenceController::Instance().getTotalCuts() > 0) {
-        yRetract = CutSequenceController::Instance().getYRetract();
-        ClearCore::ConnectorUsb.Send("[AutoCut] Using configured retract position: ");
-        ClearCore::ConnectorUsb.SendLine(yRetract);
-    }
-    else {
-        // Fall back to JogYScreen
-        yRetract = _mgr.GetJogYScreen().getRetractPosition();
-        ClearCore::ConnectorUsb.Send("[AutoCut] Using JogY retract position: ");
-        ClearCore::ConnectorUsb.SendLine(yRetract);
-    }
+    ClearCore::ConnectorUsb.Send("[AutoCut] Y Job Zero calculation: Cut Start ");
+    ClearCore::ConnectorUsb.Send(cutData.cutStartPoint);
+    ClearCore::ConnectorUsb.Send(" - Retract Distance ");
+    ClearCore::ConnectorUsb.Send(cutData.retractDistance);
+    ClearCore::ConnectorUsb.Send(" = ");
+    ClearCore::ConnectorUsb.Send(desiredRetractPos);
+    ClearCore::ConnectorUsb.SendLine(" (limited to >= 0.0)");
 
     // Start by moving Y to retract position at full speed
-    MotionController::Instance().moveTo(AXIS_Y, yRetract, 1.0f); // Full speed
+    MotionController::Instance().moveTo(AXIS_Y, desiredRetractPos, 1.0f);
     _rapidState = MovingYToRetract;
 
     delay(200);
@@ -346,12 +346,19 @@ void AutoCutScreen::update() {
 
     // Handle rapid movement state machine
     if (_rapidState == MovingYToRetract) {
-        float yRetract = CutSequenceController::Instance().getYRetract();
+        // Calculate the same retract position as in moveToStartPosition()
+        auto& cutData = _mgr.GetCutData();
+        float yHomePos = 0.0f;
+        float desiredRetractPos = cutData.cutStartPoint - cutData.retractDistance;
+        if (desiredRetractPos < yHomePos) {
+            desiredRetractPos = yHomePos;
+        }
+
         float yCurrent = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
-        if (fabs(yCurrent - yRetract) < 0.01f) { // Tolerance
+        if (fabs(yCurrent - desiredRetractPos) < 0.01f) { // Tolerance
             // Now move X to zero
-            auto& cutData = ScreenManager::Instance().GetCutData();
-            float xZero = cutData.useStockZero ? cutData.positionZero : 0.0f;
+            auto& cutDataForX = ScreenManager::Instance().GetCutData();
+            float xZero = cutDataForX.useStockZero ? cutDataForX.positionZero : 0.0f;
             MotionController::Instance().moveTo(AXIS_X, xZero, 1.0f); // Full speed
             _rapidState = MovingXToZero;
         }
