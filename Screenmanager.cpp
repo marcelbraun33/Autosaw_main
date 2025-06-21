@@ -82,16 +82,7 @@ void ScreenManager::ShowJogZ() { writeForm(FORM_JOG_Z); }
 void ScreenManager::ShowSemiAuto() { writeForm(FORM_SEMI_AUTO); }
 void ScreenManager::ShowAutoCut() { writeForm(FORM_AUTOCUT); }
 void ScreenManager::ShowSetupAutocut() {
-    // Set global reference to the setup autocut screen
-    g_setupAutocutScreen = &_setupAutocutScreen;
-    
-    // Regular screen showing code
-    if (_currentScreen == &_setupAutocutScreen) return;
-    
-    if (_currentScreen) _currentScreen->onHide();
     writeForm(FORM_SETUP_AUTOCUT);
-    _currentScreen = &_setupAutocutScreen;
-    _currentScreen->onShow();
 }
 
 void ScreenManager::Back() {

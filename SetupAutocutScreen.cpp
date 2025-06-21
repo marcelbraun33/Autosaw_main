@@ -1,4 +1,4 @@
-// SetupAutocutScreen.cpp - Implements batch setup UI for auto cutting
+// SetupAutocutScreen.cpp - Optimized for fast screen transitions
 #include "SetupAutocutScreen.h"
 #include "screenmanager.h"
 #include "CutSequenceController.h"
@@ -11,36 +11,33 @@
 extern Genie genie;
 
 // Define fixed MPG increment for fine control
-#define MPG_FIXED_INCREMENT 0.50f  // Half slice per increment, easier to get to round numbers
+#define MPG_FIXED_INCREMENT 1.0f  // One slice per increment (was 0.5f)
 
-SetupAutocutScreen::SetupAutocutScreen(ScreenManager& mgr) 
-    : _mgr(mgr), _tempSlices(1), _editingSlices(false) {}
+SetupAutocutScreen::SetupAutocutScreen(ScreenManager& mgr)
+    : _mgr(mgr), _tempSlices(1), _editingSlices(false), _needsDisplayUpdate(false) {
+}
 
 void SetupAutocutScreen::onShow() {
-    // Get current batch size from controller
+    // Minimal, fast initialization - defer expensive operations
     auto& seq = CutSequenceController::Instance();
     int currentBatchSize = seq.getBatchSize();
 
-    // If not set, default to 1
     if (currentBatchSize <= 0) {
         currentBatchSize = 1;
     }
 
     _tempSlices = static_cast<float>(currentBatchSize);
+    _editingSlices = false;  // Ensure we start in non-editing mode
 
     // Initialize MPG mode but disabled until user activates it
     MPGJogManager::Instance().setEnabled(false);
 
-    // Calculate remaining positions
-    int remainingPos = seq.getRemainingPositions();
+    // Defer the expensive display updates to first update() call
+    _needsDisplayUpdate = true;
 
-    // Update displays
-    updateDisplay();
-
+    // Minimal logging
     ClearCore::ConnectorUsb.Send("[SetupAutocut] Opened with batch size ");
-    ClearCore::ConnectorUsb.Send(currentBatchSize);
-    ClearCore::ConnectorUsb.Send(", remaining: ");
-    ClearCore::ConnectorUsb.SendLine(remainingPos);
+    ClearCore::ConnectorUsb.SendLine(currentBatchSize);
 }
 
 void SetupAutocutScreen::onHide() {
@@ -70,11 +67,6 @@ void SetupAutocutScreen::handleEvent(const genieFrame& e) {
 
         case WINBUTTON_SETTINGS_F9:
             ScreenManager::Instance().ShowSettings();
-            break;
-
-        case WINBUTTON_BACK:
-            // Return to auto cut screen
-            ScreenManager::Instance().ShowAutoCut();
             break;
         }
         break;
@@ -160,57 +152,75 @@ void SetupAutocutScreen::updateDisplay() {
 
 void SetupAutocutScreen::onEncoderChanged(int deltaClicks) {
     if (_editingSlices) {
+        ClearCore::ConnectorUsb.Send("[SetupAutocut] Encoder delta: ");
+        ClearCore::ConnectorUsb.SendLine(deltaClicks);
+
         // Accumulate delta clicks - we need this because the encoder might generate
         // multiple clicks in one update cycle
         _encoderDeltaAccum += deltaClicks;
-        
+
         // Only apply changes when they exceed a threshold value to avoid too-rapid changes
         if (abs(_encoderDeltaAccum) >= 1) {
             int delta = (_encoderDeltaAccum > 0) ? 1 : -1;
             _encoderDeltaAccum = 0; // Reset accumulator
-            
-            // Apply the delta using our fixed increment
+
+            // Apply the delta using our fixed increment (now 1.0)
             _tempSlices += delta * MPG_FIXED_INCREMENT;
-            
+
             // Enforce limits
             int maxBatch = CutSequenceController::Instance().getMaxBatchSize();
-            if (_tempSlices < 1) _tempSlices = 1;
-            if (_tempSlices > maxBatch) _tempSlices = maxBatch;
-            
+            if (_tempSlices < 1.0f) _tempSlices = 1.0f;
+            if (_tempSlices > maxBatch) _tempSlices = static_cast<float>(maxBatch);
+
             // Round to nearest integer since partial slices don't make sense
             _tempSlices = round(_tempSlices);
-            
+
             // Update display
-            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SLICES_TO_CUT_F9, 
+            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SLICES_TO_CUT_F9,
                 static_cast<uint16_t>(_tempSlices));
-            
+
             ClearCore::ConnectorUsb.Send("[SetupAutocut] Encoder changed: ");
             ClearCore::ConnectorUsb.Send(delta);
             ClearCore::ConnectorUsb.Send(", new value: ");
-            ClearCore::ConnectorUsb.SendLine(_tempSlices);
+            ClearCore::ConnectorUsb.SendLine(static_cast<int>(_tempSlices));
         }
     }
 }
 
 void SetupAutocutScreen::update() {
-    // Only process encoder input when in editing mode
+    // Handle deferred display update from onShow() - happens only once
+    if (_needsDisplayUpdate) {
+        updateDisplay();
+        _needsDisplayUpdate = false;
+    }
+
+    // Handle MPG encoder input when in editing mode
     if (_editingSlices) {
-        auto& mpg = MPGJogManager::Instance();
-        
+        static int32_t lastEncoderPosition = 0;
+        int32_t currentPosition = ClearCore::EncoderIn.Position();
+
+        if (currentPosition != lastEncoderPosition) {
+            int deltaClicks = (currentPosition - lastEncoderPosition) / ENCODER_COUNTS_PER_CLICK;
+            if (deltaClicks != 0) {
+                onEncoderChanged(deltaClicks);
+                lastEncoderPosition = currentPosition;
+            }
+        }
+
         // Make sure button stays highlighted while in this mode
         static uint32_t lastUIRefresh = 0;
         uint32_t now = ClearCore::TimingMgr.Milliseconds();
-        
+
         if (now - lastUIRefresh > 500) {
             showButtonSafe(WINBUTTON_SLICES_TO_CUT_F9, 1);
             lastUIRefresh = now;
         }
     }
 
-    // Update all displays occasionally
+    // Update all displays occasionally (less frequently to reduce overhead)
     static uint32_t lastUpdate = 0;
     uint32_t now = ClearCore::TimingMgr.Milliseconds();
-    if (now - lastUpdate > 1000) {
+    if (now - lastUpdate > 2000) {  // Reduced frequency from 1000ms to 2000ms
         updateDisplay();
         lastUpdate = now;
     }

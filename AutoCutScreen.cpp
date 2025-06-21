@@ -30,7 +30,10 @@ void AutoCutScreen::onShow() {
 }
 
 void AutoCutScreen::onHide() {
-    AutoCutCycleManager::Instance().abortCycle();
+    // Only abort if actually running to avoid unnecessary work
+    if (CutSequenceController::Instance().isActive()) {
+        AutoCutCycleManager::Instance().abortCycle();
+    }
     _torqueControlUI.onHide();  // Clean up torque control UI
 }
 
@@ -40,32 +43,32 @@ void AutoCutScreen::handleEvent(const genieFrame& e) {
     switch (e.reportObject.object) {
     case GENIE_OBJ_WINBUTTON:
         switch (e.reportObject.index) {
-        case WINBUTTON_START_AUTOFEED_F5:
+        case WINBUTTON_START_AUTOFEED_F5:           // 25 - Start Auto Feed
             startCycle();
             break;
-        case WINBUTTON_SLIDE_HOLD_F5:
-            pauseCycle();
+        case WINBUTTON_SLIDE_HOLD_F5:               // 23 - Pause/Resume toggle
+            togglePauseResume();
             break;
-        case WINBUTTON_END_CYCLE_F5:
+        case WINBUTTON_END_CYCLE_F5:                // 22 - Stop/Cancel cycle
             cancelCycle();
             break;
-        case WINBUTTON_ADJUST_CUT_PRESSURE_F5:
+        case WINBUTTON_ADJUST_CUT_PRESSURE_F5:      // 43 - Adjust cut pressure
             adjustCutPressure();
             break;
-        case WINBUTTON_ADJUST_MAX_SPEED_F5:
+        case WINBUTTON_ADJUST_MAX_SPEED_F5:         // 45 - Adjust max speed
             adjustMaxSpeed();
             break;
-        case WINBUTTON_MOVE_TO_START_POSITION:
+        case WINBUTTON_MOVE_TO_START_POSITION:      // 44 - Rapid to Zero
             moveToStartPosition();
             break;
-        case WINBUTTON_SPINDLE_F5:
+        case WINBUTTON_SPINDLE_F5:                  // 24 - Toggle spindle
             toggleSpindle();
             break;
-        case WINBUTTON_SETTINGS_F5:
+        case WINBUTTON_SETTINGS_F5:                 // 26 - Open settings
             openSettings();
             break;
-        case WINBUTTON_SETUP_AUTOCUT_F5:  // NEW - Handle Setup Autocut button
-            ScreenManager::Instance().ShowSetupAutocut();
+        case WINBUTTON_SETUP_AUTOCUT_F5:            // 46 - Setup Auto Cut
+            openSetupAutocutScreen();
             break;
         }
         break;
@@ -73,16 +76,33 @@ void AutoCutScreen::handleEvent(const genieFrame& e) {
 }
 
 void AutoCutScreen::startCycle() {
-    // Access JogXScreen and JogYScreen via _mgr
-    std::vector<float> xIncrements = _mgr.GetJogXScreen().getIncrementPositions();
-    float yStart = _mgr.GetJogYScreen().getCutStart();
-    float yStop = _mgr.GetJogYScreen().getCutStop();
-    float yRetract = _mgr.GetJogYScreen().getRetractPosition();
+    ClearCore::ConnectorUsb.SendLine("[AutoCut] Start Cycle requested");
 
-    CutSequenceController::Instance().setXIncrements(xIncrements);
-    CutSequenceController::Instance().setYCutStart(yStart);
-    CutSequenceController::Instance().setYCutStop(yStop);
-    CutSequenceController::Instance().setYRetract(yRetract);
+    // Visual feedback
+    updateButtonState(WINBUTTON_START_AUTOFEED_F5, true, nullptr, 0);
+
+    auto& cutSeq = CutSequenceController::Instance();
+
+    // Check if already running
+    if (cutSeq.isActive()) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Error: Cycle already running");
+        flashButtonError(WINBUTTON_START_AUTOFEED_F5);
+        return;
+    }
+
+    // Validate that setup has been done
+    if (cutSeq.getTotalCuts() == 0) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Error: No cuts configured - press Setup Auto Cut first");
+        flashButtonError(WINBUTTON_START_AUTOFEED_F5);
+        return;
+    }
+
+    // Check if all cuts are already complete
+    if (cutSeq.getRemainingPositions() == 0) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Error: All cuts already completed - reset from Jog X screen");
+        flashButtonError(WINBUTTON_START_AUTOFEED_F5);
+        return;
+    }
 
     // Notify torque control UI that cutting is active
     _torqueControlUI.setCuttingActive(true);
@@ -94,24 +114,66 @@ void AutoCutScreen::startCycle() {
     // Apply these values before starting
     MotionController::Instance().setTorqueTarget(AXIS_Y, cutPressure);
 
-    // TODO: You may need to pass feedRate to AutoCutCycleManager if it accepts it
-    AutoCutCycleManager::Instance().startCycle();
+    // Set a reasonable batch size (limit for safety)
+    int remainingCuts = cutSeq.getRemainingPositions();
+    int batchSize = remainingCuts > 5 ? 5 : remainingCuts; // Max 5 cuts per batch
+    cutSeq.setBatchSize(batchSize);
+
+    // Start the batch sequence
+    if (cutSeq.startBatchSequence()) {
+        ClearCore::ConnectorUsb.Send("[AutoCut] Batch started: ");
+        ClearCore::ConnectorUsb.Send(static_cast<int>(batchSize));
+        ClearCore::ConnectorUsb.Send(" cuts, ");
+        ClearCore::ConnectorUsb.Send(static_cast<int>(remainingCuts));
+        ClearCore::ConnectorUsb.SendLine(" total remaining");
+
+        // Keep start button highlighted while running
+        // (will be cleared in update() when cycle completes)
+    }
+    else {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Failed to start batch sequence");
+        _torqueControlUI.setCuttingActive(false);
+        updateButtonState(WINBUTTON_START_AUTOFEED_F5, false, nullptr, 0);
+    }
+
+    updateDisplay();
+}
+
+void AutoCutScreen::togglePauseResume() {
+    auto& cutSeq = CutSequenceController::Instance();
+
+    if (cutSeq.isActive()) {
+        // Currently running - pause it
+        cutSeq.pause();
+        updateButtonState(WINBUTTON_SLIDE_HOLD_F5, true, "[AutoCut] Cycle paused", 0);
+    }
+    else {
+        // Currently paused - resume it
+        cutSeq.resume();
+        updateButtonState(WINBUTTON_SLIDE_HOLD_F5, false, "[AutoCut] Cycle resumed", 0);
+    }
+
     updateDisplay();
 }
 
 void AutoCutScreen::pauseCycle() {
-    AutoCutCycleManager::Instance().feedHold();
-    updateDisplay();
+    // Legacy method - redirect to toggle
+    togglePauseResume();
 }
 
 void AutoCutScreen::resumeCycle() {
-    AutoCutCycleManager::Instance().resumeCycle();
+    auto& cutSeq = CutSequenceController::Instance();
+    cutSeq.resume();
+    updateButtonState(WINBUTTON_SLIDE_HOLD_F5, false, "[AutoCut] Cycle resumed", 0);
     updateDisplay();
 }
 
 void AutoCutScreen::cancelCycle() {
-    AutoCutCycleManager::Instance().abortCycle();
+    auto& cutSeq = CutSequenceController::Instance();
+    cutSeq.abort();
     _torqueControlUI.setCuttingActive(false);
+    updateButtonState(WINBUTTON_START_AUTOFEED_F5, false, "[AutoCut] Cycle cancelled", 0);
+    updateButtonState(WINBUTTON_SLIDE_HOLD_F5, false, nullptr, 0);
     updateDisplay();
 }
 
@@ -145,10 +207,46 @@ void AutoCutScreen::adjustMaxSpeed() {
 }
 
 void AutoCutScreen::moveToStartPosition() {
-    // Start by moving Y to retract
-    float yRetract = CutSequenceController::Instance().getYRetract();
-    MotionController::Instance().moveTo(AXIS_Y, yRetract, 1.0f); // 1.0f = full speed
+    ClearCore::ConnectorUsb.SendLine("[AutoCut] Move to Start Position (Rapid to Zero)");
+
+    // Visual feedback
+    updateButtonState(WINBUTTON_MOVE_TO_START_POSITION, true, nullptr, 0);
+
+    // Get Y retract position from CutSequenceController or JogYScreen
+    float yRetract = 0.0f;
+
+    // First try to get from CutSequenceController if it's been set up
+    if (CutSequenceController::Instance().getTotalCuts() > 0) {
+        yRetract = CutSequenceController::Instance().getYRetract();
+        ClearCore::ConnectorUsb.Send("[AutoCut] Using configured retract position: ");
+        ClearCore::ConnectorUsb.SendLine(yRetract);
+    }
+    else {
+        // Fall back to JogYScreen
+        yRetract = _mgr.GetJogYScreen().getRetractPosition();
+        ClearCore::ConnectorUsb.Send("[AutoCut] Using JogY retract position: ");
+        ClearCore::ConnectorUsb.SendLine(yRetract);
+    }
+
+    // Start by moving Y to retract position at full speed
+    MotionController::Instance().moveTo(AXIS_Y, yRetract, 1.0f); // Full speed
     _rapidState = MovingYToRetract;
+
+    delay(200);
+    updateButtonState(WINBUTTON_MOVE_TO_START_POSITION, false, nullptr, 0);
+}
+
+void AutoCutScreen::openSetupAutocutScreen() {
+    ScreenManager::Instance().ShowSetupAutocut();
+}
+
+void AutoCutScreen::flashButtonError(uint16_t buttonId) {
+    // Flash button to indicate error
+    for (int i = 0; i < 3; i++) {
+        updateButtonState(buttonId, false, nullptr, 150);
+        updateButtonState(buttonId, true, nullptr, 150);
+    }
+    updateButtonState(buttonId, false, nullptr, 0);
 }
 
 void AutoCutScreen::toggleSpindle() {
@@ -193,32 +291,36 @@ void AutoCutScreen::updateDisplay() {
     int totalSlices = seq.getTotalCuts();
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_TOTAL_SLICES_F5, static_cast<uint16_t>(totalSlices));
 
+    // Job Remaining Cuts
+    int remainingCuts = seq.getRemainingPositions();
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_JOB_REMAINING_F5, static_cast<uint16_t>(remainingCuts));
+
     // Show progress percentage
     float progress = seq.getBatchProgressPercent();
     // You could add a progress bar or percentage display
 
     // Show state-specific information
     switch (seq.getState()) {
-        case CutSequenceController::SEQUENCE_CUTTING: {
-            // Show distance to go in current cut - access private members through proper methods
-            float yCurrentPos = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
-            float yCutStop = seq.getYCutStop();
-            float distanceToGo = yCutStop - yCurrentPos;
-            if (distanceToGo < 0) distanceToGo = 0;
-            genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F5, 
-                static_cast<uint16_t>(distanceToGo * 1000));
-            break;
-        }
-        case CutSequenceController::SEQUENCE_MOVING_TO_X:
-            // Could show "Moving to position X"
-            break;
-        case CutSequenceController::SEQUENCE_COMPLETED:
-            // Show completion message or flash indicator
-            break;
+    case CutSequenceController::SEQUENCE_CUTTING: {
+        // Show distance to go in current cut
+        float yCurrentPos = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
+        float yCutStop = seq.getYCutStop();
+        float distanceToGo = yCutStop - yCurrentPos;
+        if (distanceToGo < 0) distanceToGo = 0;
+        genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_DISTANCE_TO_GO_F5,
+            static_cast<uint16_t>(distanceToGo * 1000));
+        break;
+    }
+    case CutSequenceController::SEQUENCE_MOVING_TO_X:
+        // Could show "Moving to position X"
+        break;
+    case CutSequenceController::SEQUENCE_COMPLETED:
+        // Show completion message or flash indicator
+        break;
     }
 
     // Spindle RPM
-    uint16_t rpm = MotionController::Instance().IsSpindleRunning() ? 
+    uint16_t rpm = MotionController::Instance().IsSpindleRunning() ?
         static_cast<uint16_t>(MotionController::Instance().CommandedRPM()) : 0;
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_F5, rpm);
 
@@ -250,7 +352,7 @@ void AutoCutScreen::update() {
             // Now move X to zero
             auto& cutData = ScreenManager::Instance().GetCutData();
             float xZero = cutData.useStockZero ? cutData.positionZero : 0.0f;
-            MotionController::Instance().moveTo(AXIS_X, xZero, 1.0f);
+            MotionController::Instance().moveTo(AXIS_X, xZero, 1.0f); // Full speed
             _rapidState = MovingXToZero;
         }
     }
@@ -260,11 +362,42 @@ void AutoCutScreen::update() {
         float xCurrent = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
         if (fabs(xCurrent - xZero) < 0.01f) { // Tolerance
             _rapidState = RapidIdle;
+            ClearCore::ConnectorUsb.SendLine("[AutoCut] Rapid to start position complete");
             updateDisplay();
         }
     }
 
-    // Check if cycle completed
+    // Update button states based on sequence status
+    auto& cutSeq = CutSequenceController::Instance();
+    static bool wasActive = false;
+    bool isActive = cutSeq.isActive();
+
+    // Update Start/Stop button states
+    if (isActive != wasActive) {
+        if (isActive) {
+            // Sequence just started - keep start button lit
+            updateButtonState(WINBUTTON_START_AUTOFEED_F5, true, nullptr, 0);
+        }
+        else {
+            // Sequence just stopped - turn off start button
+            updateButtonState(WINBUTTON_START_AUTOFEED_F5, false, nullptr, 0);
+            updateButtonState(WINBUTTON_SLIDE_HOLD_F5, false, nullptr, 0);
+            _torqueControlUI.setCuttingActive(false);
+
+            // Check completion status
+            if (cutSeq.getRemainingPositions() == 0) {
+                ClearCore::ConnectorUsb.SendLine("[AutoCut] All cuts completed!");
+            }
+            else {
+                ClearCore::ConnectorUsb.Send("[AutoCut] Batch completed. ");
+                ClearCore::ConnectorUsb.Send(static_cast<int>(cutSeq.getRemainingPositions()));
+                ClearCore::ConnectorUsb.SendLine(" cuts remaining.");
+            }
+        }
+        wasActive = isActive;
+    }
+
+    // Check if cycle completed via AutoCutCycleManager (legacy support)
     auto& mgr = AutoCutCycleManager::Instance();
     static bool wasInCycle = false;
     bool isInCycle = mgr.isInCycle();
