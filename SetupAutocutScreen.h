@@ -1,4 +1,4 @@
-// SetupAutocutScreen.h - Form9 Setup Autocut Screen
+// SetupAutocutScreen.h - Form9 Setup Autocut Screen (Debug Enhanced)
 #pragma once
 #include "Screen.h"
 #include "UIInputManager.h"
@@ -8,7 +8,6 @@ class ScreenManager;
 class SetupAutocutScreen : public Screen {
 public:
     SetupAutocutScreen(ScreenManager& mgr);
-
     void onShow() override;
     void onHide() override;
     void handleEvent(const genieFrame& e) override;
@@ -20,16 +19,20 @@ public:
     // Getter for checking if we're in editing mode
     bool isEditingSlices() const { return _editingSlices; }
 
+    // Debug method to verify controller state
+    void debugControllerState();
+
 private:
     void updateDisplay();
     void setSlicesToCut();
     void updateSlicesToCutButton();
-    bool _needsDisplayUpdate = false;  // Flag for deferred display update
+    void performAutomaticSetup();     // Automatic Y position setup
 
     ScreenManager& _mgr;
-    float _tempSlices;  // Temporary value for editing slices
+    float _tempSlices;              // Temporary value for editing slices
     bool _editingSlices;
-    int _encoderDeltaAccum = 0;  // Accumulated encoder delta for tracking movement
+    int _encoderDeltaAccum = 0;     // Accumulated encoder delta for tracking movement
+    bool _needsDisplayUpdate = false; // Flag for deferred display update
 };
 
 // External reference to the global SetupAutocutScreen pointer

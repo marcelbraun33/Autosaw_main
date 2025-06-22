@@ -1,4 +1,4 @@
-// SetupAutocutScreen.cpp - Optimized for fast screen transitions
+// SetupAutocutScreen.cpp - Enhanced debugging version
 #include "SetupAutocutScreen.h"
 #include "screenmanager.h"
 #include "CutSequenceController.h"
@@ -11,36 +11,221 @@
 extern Genie genie;
 
 // Define fixed MPG increment for fine control
-#define MPG_FIXED_INCREMENT 1.0f  // One slice per increment (was 0.5f)
+#define MPG_FIXED_INCREMENT 1.0f  // One slice per increment
 
 SetupAutocutScreen::SetupAutocutScreen(ScreenManager& mgr)
     : _mgr(mgr), _tempSlices(1), _editingSlices(false), _needsDisplayUpdate(false) {
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Constructor called");
 }
 
 void SetupAutocutScreen::onShow() {
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] onShow() - START");
+
     // Minimal, fast initialization - defer expensive operations
     auto& seq = CutSequenceController::Instance();
     int currentBatchSize = seq.getBatchSize();
 
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Current batch size from controller: ");
+    ClearCore::ConnectorUsb.SendLine(currentBatchSize);
+
     if (currentBatchSize <= 0) {
         currentBatchSize = 1;
+        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Adjusted batch size to 1");
     }
 
     _tempSlices = static_cast<float>(currentBatchSize);
     _editingSlices = false;  // Ensure we start in non-editing mode
 
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Initializing MPG...");
     // Initialize MPG mode but disabled until user activates it
     MPGJogManager::Instance().setEnabled(false);
+
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] About to call performAutomaticSetup()...");
+
+    // AUTOMATICALLY CONFIGURE CUT POSITIONS AND Y VALUES
+    performAutomaticSetup();
+
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] performAutomaticSetup() completed");
 
     // Defer the expensive display updates to first update() call
     _needsDisplayUpdate = true;
 
-    // Minimal logging
-    ClearCore::ConnectorUsb.Send("[SetupAutocut] Opened with batch size ");
+    // Enhanced logging
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] onShow() completed with batch size ");
     ClearCore::ConnectorUsb.SendLine(currentBatchSize);
 }
 
+void SetupAutocutScreen::performAutomaticSetup() {
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] performAutomaticSetup() - ENTRY");
+
+    auto& cutData = _mgr.GetCutData();
+    auto& cutSeq = CutSequenceController::Instance();
+
+    // Debug: Print all cut data values
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Cut data - increment: ");
+    ClearCore::ConnectorUsb.SendLine(cutData.increment);
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Cut data - totalSlices: ");
+    ClearCore::ConnectorUsb.SendLine(cutData.totalSlices);
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Cut data - cutStartPoint: ");
+    ClearCore::ConnectorUsb.SendLine(cutData.cutStartPoint);
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Cut data - cutEndPoint: ");
+    ClearCore::ConnectorUsb.SendLine(cutData.cutEndPoint);
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Cut data - retractDistance: ");
+    ClearCore::ConnectorUsb.SendLine(cutData.retractDistance);
+
+    // Validate setup parameters
+    if (cutData.increment <= 0.0f) {
+        ClearCore::ConnectorUsb.Send("[SetupAutocut] ERROR: Invalid increment (");
+        ClearCore::ConnectorUsb.Send(cutData.increment);
+        ClearCore::ConnectorUsb.SendLine(") - configure on Jog X screen");
+        return;
+    }
+
+    if (cutData.totalSlices <= 0) {
+        ClearCore::ConnectorUsb.Send("[SetupAutocut] ERROR: Invalid total slices (");
+        ClearCore::ConnectorUsb.Send(cutData.totalSlices);
+        ClearCore::ConnectorUsb.SendLine(") - configure on Jog X screen");
+        return;
+    }
+
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Cut data validation passed");
+
+    // Get Y positions from cut data
+    float yStart = cutData.cutStartPoint;     // 1.81 - where cutting begins
+    float yStop = cutData.cutEndPoint;        // 4.61 - where cutting ends (deeper)
+    float yRetract = cutData.cutStartPoint - cutData.retractDistance;  // 1.52 - retract position
+
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Y calculations - Raw Start: ");
+    ClearCore::ConnectorUsb.Send(yStart);
+    ClearCore::ConnectorUsb.Send(", Raw Stop: ");
+    ClearCore::ConnectorUsb.Send(yStop);
+    ClearCore::ConnectorUsb.Send(", Raw Retract calc: ");
+    ClearCore::ConnectorUsb.SendLine(yRetract);
+
+    // Ensure retract position doesn't go below zero
+    if (yRetract < 0.0f) {
+        ClearCore::ConnectorUsb.Send("[SetupAutocut] WARNING: Retract position ");
+        ClearCore::ConnectorUsb.Send(yRetract);
+        ClearCore::ConnectorUsb.SendLine(" adjusted to 0.0");
+        yRetract = 0.0f;
+    }
+
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Final Y positions - Start: ");
+    ClearCore::ConnectorUsb.Send(yStart);
+    ClearCore::ConnectorUsb.Send(", Stop: ");
+    ClearCore::ConnectorUsb.Send(yStop);
+    ClearCore::ConnectorUsb.Send(", Retract: ");
+    ClearCore::ConnectorUsb.SendLine(yRetract);
+
+    // CORRECTED VALIDATION: For downward cutting, start should be less than stop
+    if (yStart >= yStop) {
+        ClearCore::ConnectorUsb.Send("[SetupAutocut] ERROR: Cut start (");
+        ClearCore::ConnectorUsb.Send(yStart);
+        ClearCore::ConnectorUsb.Send(") must be above (less than) cut stop (");
+        ClearCore::ConnectorUsb.Send(yStop);
+        ClearCore::ConnectorUsb.SendLine(") for downward cutting - configure on Jog Y screen");
+        return;
+    }
+
+    if (yRetract > yStart) {
+        ClearCore::ConnectorUsb.Send("[SetupAutocut] WARNING: Retract position (");
+        ClearCore::ConnectorUsb.Send(yRetract);
+        ClearCore::ConnectorUsb.Send(") should be above (less than) cut start (");
+        ClearCore::ConnectorUsb.Send(yStart);
+        ClearCore::ConnectorUsb.SendLine(")");
+    }
+
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Y position validation passed");
+
+    // Get X positions
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Getting X increment positions...");
+
+    auto& jogXScreen = _mgr.GetJogXScreen();
+    std::vector<float> xIncrements = jogXScreen.getIncrementPositions();
+
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Retrieved ");
+    ClearCore::ConnectorUsb.Send(static_cast<int>(xIncrements.size()));
+    ClearCore::ConnectorUsb.SendLine(" X positions");
+
+    if (xIncrements.empty()) {
+        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] ERROR: No X positions available from JogX screen");
+        return;
+    }
+
+    // Log first few X positions for verification
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] First few X positions:");
+    for (size_t i = 0; i < std::min(xIncrements.size(), size_t(3)); ++i) {
+        ClearCore::ConnectorUsb.Send("  [");
+        ClearCore::ConnectorUsb.Send(static_cast<int>(i));
+        ClearCore::ConnectorUsb.Send("]: ");
+        ClearCore::ConnectorUsb.SendLine(xIncrements[i]);
+    }
+
+    // Configure the CutSequenceController
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Configuring CutSequenceController...");
+
+    cutSeq.setXIncrements(xIncrements);
+    cutSeq.setYCutStart(yStart);      // 1.81
+    cutSeq.setYCutStop(yStop);        // 4.61  
+    cutSeq.setYRetract(yRetract);     // 1.52
+
+    // Verify the values were set correctly
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Verifying controller values...");
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Controller Y Start: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getYCutStart());
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Controller Y Stop: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getYCutStop());
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Controller Y Retract: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getYRetract());
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] Controller Total Cuts: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getTotalCuts());
+
+    ClearCore::ConnectorUsb.Send("[SetupAutocut] SUCCESS: Automatic setup complete with ");
+    ClearCore::ConnectorUsb.Send(static_cast<int>(xIncrements.size()));
+    ClearCore::ConnectorUsb.SendLine(" X positions configured");
+
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] performAutomaticSetup() - EXIT SUCCESS");
+}
+// Add this new method to verify controller state
+void SetupAutocutScreen::debugControllerState() {
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] === CONTROLLER STATE DEBUG ===");
+
+    auto& cutSeq = CutSequenceController::Instance();
+
+    ClearCore::ConnectorUsb.Send("Total cuts: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getTotalCuts());
+
+    ClearCore::ConnectorUsb.Send("Y Cut Start: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getYCutStart());
+
+    ClearCore::ConnectorUsb.Send("Y Cut Stop: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getYCutStop());
+
+    ClearCore::ConnectorUsb.Send("Y Retract: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getYRetract());
+
+    ClearCore::ConnectorUsb.Send("Current Index: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getCurrentIndex());
+
+    ClearCore::ConnectorUsb.Send("Last Completed Position: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getLastCompletedPosition());
+
+    ClearCore::ConnectorUsb.Send("Remaining Positions: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getRemainingPositions());
+
+    ClearCore::ConnectorUsb.Send("Max Batch Size: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getMaxBatchSize());
+
+    ClearCore::ConnectorUsb.Send("Is Active: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.isActive() ? "YES" : "NO");
+
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] === END CONTROLLER DEBUG ===");
+}
+
+// Rest of the methods remain the same...
 void SetupAutocutScreen::onHide() {
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] onHide() called");
+
     // Clean up any active editing
     if (_editingSlices) {
         UIInputManager::Instance().unbindField();
@@ -49,6 +234,8 @@ void SetupAutocutScreen::onHide() {
 
     // Make sure MPG is disabled when leaving
     MPGJogManager::Instance().setEnabled(false);
+
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] onHide() completed");
 }
 
 void SetupAutocutScreen::handleEvent(const genieFrame& e) {
@@ -70,6 +257,8 @@ void SetupAutocutScreen::handleEvent(const genieFrame& e) {
             break;
 
         case WINBUTTON_RETURN_TO_AUTOCUT_F9:        // 54 - Return To Autocut
+            // Debug controller state before returning
+            debugControllerState();
             ScreenManager::Instance().ShowAutoCut();
             break;
         }
@@ -159,16 +348,15 @@ void SetupAutocutScreen::onEncoderChanged(int deltaClicks) {
         ClearCore::ConnectorUsb.Send("[SetupAutocut] Encoder delta: ");
         ClearCore::ConnectorUsb.SendLine(deltaClicks);
 
-        // Accumulate delta clicks - we need this because the encoder might generate
-        // multiple clicks in one update cycle
+        // Accumulate delta clicks
         _encoderDeltaAccum += deltaClicks;
 
-        // Only apply changes when they exceed a threshold value to avoid too-rapid changes
+        // Only apply changes when they exceed a threshold value
         if (abs(_encoderDeltaAccum) >= 1) {
             int delta = (_encoderDeltaAccum > 0) ? 1 : -1;
             _encoderDeltaAccum = 0; // Reset accumulator
 
-            // Apply the delta using our fixed increment (now 1.0)
+            // Apply the delta using our fixed increment
             _tempSlices += delta * MPG_FIXED_INCREMENT;
 
             // Enforce limits
@@ -194,8 +382,16 @@ void SetupAutocutScreen::onEncoderChanged(int deltaClicks) {
 void SetupAutocutScreen::update() {
     // Handle deferred display update from onShow() - happens only once
     if (_needsDisplayUpdate) {
+        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Performing deferred display update");
         updateDisplay();
         _needsDisplayUpdate = false;
+
+        // Debug controller state after initial display update
+        static bool debugPrinted = false;
+        if (!debugPrinted) {
+            debugControllerState();
+            debugPrinted = true;
+        }
     }
 
     // Handle MPG encoder input when in editing mode
@@ -224,7 +420,7 @@ void SetupAutocutScreen::update() {
     // Update all displays occasionally (less frequently to reduce overhead)
     static uint32_t lastUpdate = 0;
     uint32_t now = ClearCore::TimingMgr.Milliseconds();
-    if (now - lastUpdate > 2000) {  // Reduced frequency from 1000ms to 2000ms
+    if (now - lastUpdate > 2000) {  // Every 2 seconds
         updateDisplay();
         lastUpdate = now;
     }

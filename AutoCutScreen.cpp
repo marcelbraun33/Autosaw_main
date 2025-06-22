@@ -32,7 +32,7 @@ void AutoCutScreen::onShow() {
 void AutoCutScreen::onHide() {
     // Only abort if actually running to avoid unnecessary work
     if (CutSequenceController::Instance().isActive()) {
-        AutoCutCycleManager::Instance().abortCycle();
+        CutSequenceController::Instance().abort();
     }
     _torqueControlUI.onHide();  // Clean up torque control UI
 }
@@ -114,12 +114,12 @@ void AutoCutScreen::startCycle() {
     // Apply these values before starting
     MotionController::Instance().setTorqueTarget(AXIS_Y, cutPressure);
 
-    // Set a reasonable batch size (limit for safety)
+    // Set batch size to all remaining cuts
     int remainingCuts = cutSeq.getRemainingPositions();
-    int batchSize = remainingCuts > 5 ? 5 : remainingCuts; // Max 5 cuts per batch
+    int batchSize = remainingCuts; // Cut all remaining positions
     cutSeq.setBatchSize(batchSize);
 
-    // Start the batch sequence
+    // Start the batch sequence - ONLY use CutSequenceController
     if (cutSeq.startBatchSequence()) {
         ClearCore::ConnectorUsb.Send("[AutoCut] Batch started: ");
         ClearCore::ConnectorUsb.Send(static_cast<int>(batchSize));
@@ -171,6 +171,11 @@ void AutoCutScreen::resumeCycle() {
 void AutoCutScreen::cancelCycle() {
     auto& cutSeq = CutSequenceController::Instance();
     cutSeq.abort();
+
+    // CRITICAL: Reset torque control properly
+    MotionController::Instance().abortTorqueControlledFeed(AXIS_Y);
+    MotionController::Instance().setTorqueTarget(AXIS_Y, 0.0f);  // Clear torque target
+
     _torqueControlUI.setCuttingActive(false);
     updateButtonState(WINBUTTON_START_AUTOFEED_F5, false, "[AutoCut] Cycle cancelled", 0);
     updateButtonState(WINBUTTON_SLIDE_HOLD_F5, false, nullptr, 0);
@@ -362,6 +367,9 @@ void AutoCutScreen::updateButtonState(uint16_t buttonId, bool state, const char*
 }
 
 void AutoCutScreen::update() {
+    // CRITICAL: Update the cut sequence controller state machine
+    CutSequenceController::Instance().update();
+
     // Update torque control UI (handles gauge updates, encoder input, etc.)
     _torqueControlUI.update();
 
@@ -424,26 +432,6 @@ void AutoCutScreen::update() {
         }
         wasActive = isActive;
     }
-
-    // Check if cycle completed via AutoCutCycleManager (legacy support)
-    auto& mgr = AutoCutCycleManager::Instance();
-    static bool wasInCycle = false;
-    bool isInCycle = mgr.isInCycle();
-
-    if (wasInCycle && !isInCycle) {
-        // Cycle just completed
-        _torqueControlUI.setCuttingActive(false);
-
-        // Exit any adjustment mode
-        if (_torqueControlUI.isAdjusting()) {
-            _torqueControlUI.exitAdjustmentMode();
-            _torqueControlUI.updateButtonStates(
-                WINBUTTON_ADJUST_CUT_PRESSURE_F5,
-                WINBUTTON_ADJUST_MAX_SPEED_F5
-            );
-        }
-    }
-    wasInCycle = isInCycle;
 
     // Update display regularly
     updateDisplay();
