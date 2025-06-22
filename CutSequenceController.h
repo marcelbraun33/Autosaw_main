@@ -59,6 +59,7 @@ public:
     int getRemainingPositions() const;
     int getMaxBatchSize() const;
 
+
     // Position persistence
     void savePositionState();
     void loadPositionState();

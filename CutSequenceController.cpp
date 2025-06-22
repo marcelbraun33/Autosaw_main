@@ -167,6 +167,8 @@ int CutSequenceController::getMaxBatchSize() const {
     return getRemainingPositions();
 }
 
+
+
 void CutSequenceController::savePositionState() {
     // Save to EEPROM or persistent storage
     // For now, just log - implement actual EEPROM saving based on your hardware

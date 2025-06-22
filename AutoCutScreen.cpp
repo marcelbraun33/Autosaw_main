@@ -104,6 +104,27 @@ void AutoCutScreen::startCycle() {
         return;
     }
 
+    // CRITICAL FIX: Use the batch size that was set in Setup Autocut screen
+    // DO NOT override it with all remaining cuts
+    int configuredBatchSize = cutSeq.getBatchSize();
+    int remainingCuts = cutSeq.getRemainingPositions();
+
+    ClearCore::ConnectorUsb.Send("[AutoCut] Configured batch size from Setup: ");
+    ClearCore::ConnectorUsb.SendLine(configuredBatchSize);
+    ClearCore::ConnectorUsb.Send("[AutoCut] Remaining cuts available: ");
+    ClearCore::ConnectorUsb.SendLine(remainingCuts);
+
+    // Validate batch size doesn't exceed remaining cuts
+    if (configuredBatchSize > remainingCuts) {
+        ClearCore::ConnectorUsb.Send("[AutoCut] Warning: Batch size (");
+        ClearCore::ConnectorUsb.Send(configuredBatchSize);
+        ClearCore::ConnectorUsb.Send(") exceeds remaining cuts (");
+        ClearCore::ConnectorUsb.Send(remainingCuts);
+        ClearCore::ConnectorUsb.SendLine("), adjusting to remaining cuts");
+        cutSeq.setBatchSize(remainingCuts);
+        configuredBatchSize = remainingCuts;
+    }
+
     // Notify torque control UI that cutting is active
     _torqueControlUI.setCuttingActive(true);
 
@@ -114,17 +135,12 @@ void AutoCutScreen::startCycle() {
     // Apply these values before starting
     MotionController::Instance().setTorqueTarget(AXIS_Y, cutPressure);
 
-    // Set batch size to all remaining cuts
-    int remainingCuts = cutSeq.getRemainingPositions();
-    int batchSize = remainingCuts; // Cut all remaining positions
-    cutSeq.setBatchSize(batchSize);
-
-    // Start the batch sequence - ONLY use CutSequenceController
+    // Start the batch sequence using the configured batch size
     if (cutSeq.startBatchSequence()) {
         ClearCore::ConnectorUsb.Send("[AutoCut] Batch started: ");
-        ClearCore::ConnectorUsb.Send(static_cast<int>(batchSize));
-        ClearCore::ConnectorUsb.Send(" cuts, ");
-        ClearCore::ConnectorUsb.Send(static_cast<int>(remainingCuts));
+        ClearCore::ConnectorUsb.Send(configuredBatchSize);
+        ClearCore::ConnectorUsb.Send(" cuts configured, ");
+        ClearCore::ConnectorUsb.Send(remainingCuts);
         ClearCore::ConnectorUsb.SendLine(" total remaining");
 
         // Keep start button highlighted while running

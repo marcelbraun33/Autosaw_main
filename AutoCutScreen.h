@@ -41,7 +41,7 @@ private:
     void updateDisplay();
     void updateButtonState(uint16_t buttonId, bool state, const char* logMessage = nullptr, uint16_t delayMs = 0);
     void flashButtonError(uint16_t buttonId);  // Helper for error feedback
-
+    float _targetXPosition = 0.0f;
     enum RapidToZeroState {
         RapidIdle,
         MovingYToRetract,
