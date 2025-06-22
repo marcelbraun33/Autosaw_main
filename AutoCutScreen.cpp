@@ -277,15 +277,36 @@ void AutoCutScreen::openSettings() {
 void AutoCutScreen::updateDisplay() {
     auto& seq = CutSequenceController::Instance();
     auto& posData = CutPositionData::Instance();
+    auto& cutData = ScreenManager::Instance().GetCutData();
 
     // Stock Length (inches, scaled to 0.001)
-    float stockLength = ScreenManager::Instance().GetCutData().stockLength;
+    float stockLength = cutData.stockLength;
     int32_t scaledStockLength = static_cast<int32_t>(stockLength * 1000.0f);
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_STOCK_LENGTH_F5, static_cast<uint16_t>(scaledStockLength));
 
-    // Cutting Position (1-based)
-    int currentCut = seq.getCurrentIndex() + 1;
-    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUTTING_POSITION_F5, static_cast<uint16_t>(currentCut));
+    // Cutting Position - Calculate real-time position relative to stock zero
+    int currentCutPosition = 0;
+    if (cutData.useStockZero && cutData.increment > 0.0f) {
+        // Get current absolute X position
+        float currentX = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
+
+        // Calculate position relative to stock zero
+        float relativeX = currentX - cutData.positionZero;
+
+        // Calculate which "slice position" this represents
+        currentCutPosition = static_cast<int>(round(relativeX / cutData.increment));
+
+        // Ensure it's not negative
+        if (currentCutPosition < 0) currentCutPosition = 0;
+    }
+    else if (!cutData.useStockZero && cutData.increment > 0.0f) {
+        // If not using stock zero, calculate from absolute zero
+        float currentX = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
+        currentCutPosition = static_cast<int>(round(currentX / cutData.increment));
+        if (currentCutPosition < 0) currentCutPosition = 0;
+    }
+
+    genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_CUTTING_POSITION_F5, static_cast<uint16_t>(currentCutPosition));
 
     // Total Slices/Positions
     int totalSlices = seq.getTotalCuts();
@@ -325,7 +346,7 @@ void AutoCutScreen::updateDisplay() {
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_F5, rpm);
 
     // Thickness
-    float thickness = ScreenManager::Instance().GetCutData().thickness;
+    float thickness = cutData.thickness;
     int32_t scaledThickness = static_cast<int32_t>(thickness * 1000.0f);
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_THICKNESS_F5, static_cast<uint16_t>(scaledThickness));
 }
