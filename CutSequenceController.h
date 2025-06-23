@@ -53,12 +53,11 @@ public:
     // === NEW BATCH CUTTING METHODS ===
     // Batch control
     void setLastCompletedPosition(int position);
-    int getLastCompletedPosition() const { return _lastCompletedPosition; }
+    int getLastCompletedPosition() const;  // Declaration only - implementation in .cpp
     void setBatchSize(int size);
     int getBatchSize() const { return _batchSize; }
     int getRemainingPositions() const;
     int getMaxBatchSize() const;
-
 
     // Position persistence
     void savePositionState();

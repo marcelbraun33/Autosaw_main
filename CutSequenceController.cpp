@@ -1,4 +1,4 @@
-// CutSequenceController.cpp - Enhanced with batch cutting and persistence
+// CutSequenceController.cpp - Fixed with proper 1-based position tracking and state management
 #include "CutSequenceController.h"
 #include "MotionController.h"
 #include "CutPositionData.h"
@@ -18,14 +18,16 @@ CutSequenceController& CutSequenceController::Instance() {
 }
 
 CutSequenceController::CutSequenceController() {
-    // Load saved position state on startup
+    // Initialize with proper starting values
+    _lastCompletedPosition = 0;  // 0 means no positions completed yet
+    _currentIndex = 0;           // Internal 0-based index
     loadPositionState();
 }
 
-// === EXISTING METHODS (unchanged) ===
+// === EXISTING METHODS (updated for proper position tracking) ===
 void CutSequenceController::setXIncrements(const std::vector<float>& increments) {
     _xIncrements = increments;
-    _currentIndex = 0;
+    _currentIndex = _lastCompletedPosition;  // Start from last completed position
 }
 
 void CutSequenceController::setYCutStart(float yStart) { _yCutStart = yStart; }
@@ -48,10 +50,12 @@ float CutSequenceController::getYRetract() const { return _yRetract; }
 
 void CutSequenceController::reset() {
     _currentIndex = 0;
-    _lastCompletedPosition = 0;
+    _lastCompletedPosition = 0;  // Reset to beginning
     _batchCompletedCount = 0;
     _state = SEQUENCE_IDLE;
     clearPositionState();
+
+    ClearCore::ConnectorUsb.SendLine("[CutSeq] Reset - job zero returned to position 1");
 }
 
 bool CutSequenceController::advance() {
@@ -63,7 +67,7 @@ bool CutSequenceController::advance() {
 }
 
 bool CutSequenceController::isComplete() const {
-    return _currentIndex >= _xIncrements.size();
+    return _lastCompletedPosition >= _xIncrements.size();
 }
 
 int CutSequenceController::getCurrentIndex() const { return _currentIndex; }
@@ -98,15 +102,18 @@ void CutSequenceController::buildXPositions(float stockZero, float increment, in
     for (int i = 0; i < totalSlices; ++i) {
         _xIncrements.push_back(stockZero + i * increment);
     }
-    _currentIndex = 0;
 
-    // When positions are rebuilt, load saved state
+    // Load saved state to set proper starting position
     loadPositionState();
+    _currentIndex = _lastCompletedPosition;  // Start from last completed
 
     ClearCore::ConnectorUsb.Send("[CutSeq] Built ");
     ClearCore::ConnectorUsb.Send(totalSlices);
-    ClearCore::ConnectorUsb.Send(" positions, last completed: ");
-    ClearCore::ConnectorUsb.SendLine(_lastCompletedPosition);
+    ClearCore::ConnectorUsb.Send(" positions, job zero at position ");
+    ClearCore::ConnectorUsb.Send(_lastCompletedPosition);
+    ClearCore::ConnectorUsb.Send(" (next cut will be position ");
+    ClearCore::ConnectorUsb.Send(_lastCompletedPosition + 1);
+    ClearCore::ConnectorUsb.SendLine(")");
 }
 
 int CutSequenceController::getClosestIndexForPosition(float x, float tolerance) const {
@@ -142,11 +149,14 @@ float CutSequenceController::getXForIndex(int idx) const {
     return 0.0f;
 }
 
-// === NEW BATCH CUTTING METHODS ===
+// === CORRECTED BATCH CUTTING METHODS ===
 
 void CutSequenceController::setLastCompletedPosition(int position) {
-    _lastCompletedPosition = position;
+    _lastCompletedPosition = position;  // This is 1-based position number
     savePositionState();
+
+    ClearCore::ConnectorUsb.Send("[CutSeq] Job zero updated to position ");
+    ClearCore::ConnectorUsb.SendLine(_lastCompletedPosition);
 }
 
 void CutSequenceController::setBatchSize(int size) {
@@ -160,42 +170,32 @@ void CutSequenceController::setBatchSize(int size) {
 
 int CutSequenceController::getRemainingPositions() const {
     int totalPositions = _xIncrements.size();
-    return totalPositions - _lastCompletedPosition;
+    return totalPositions - _lastCompletedPosition;  // Remaining cuts from current job zero
 }
 
 int CutSequenceController::getMaxBatchSize() const {
     return getRemainingPositions();
 }
 
-
+int CutSequenceController::getLastCompletedPosition() const {
+    return _lastCompletedPosition;  // Returns 1-based position number
+}
 
 void CutSequenceController::savePositionState() {
-    // Save to EEPROM or persistent storage
-    // For now, just log - implement actual EEPROM saving based on your hardware
-    ClearCore::ConnectorUsb.Send("[CutSeq] Saving position state: ");
+    ClearCore::ConnectorUsb.Send("[CutSeq] Saving job zero state: position ");
     ClearCore::ConnectorUsb.SendLine(_lastCompletedPosition);
-
-    // Example EEPROM save (pseudo-code):
-    // EEPROM.write(POSITION_STATE_ADDR, POSITION_STATE_KEY);
-    // EEPROM.write(POSITION_STATE_ADDR + 4, _lastCompletedPosition);
+    // TODO: Implement actual EEPROM saving
 }
 
 void CutSequenceController::loadPositionState() {
-    // Load from EEPROM or persistent storage
-    // For now, just initialize - implement actual EEPROM loading
-
-    // Example EEPROM load (pseudo-code):
-    // uint32_t key = EEPROM.read(POSITION_STATE_ADDR);
-    // if (key == POSITION_STATE_KEY) {
-    //     _lastCompletedPosition = EEPROM.read(POSITION_STATE_ADDR + 4);
-    // }
-
-    ClearCore::ConnectorUsb.Send("[CutSeq] Loaded position state: ");
+    // TODO: Implement actual EEPROM loading
+    // For now, _lastCompletedPosition remains at its initialized value
+    ClearCore::ConnectorUsb.Send("[CutSeq] Loaded job zero state: position ");
     ClearCore::ConnectorUsb.SendLine(_lastCompletedPosition);
 }
 
 void CutSequenceController::clearPositionState() {
-    _lastCompletedPosition = 0;
+    _lastCompletedPosition = 0;  // Reset to beginning
     savePositionState();
 }
 
@@ -226,10 +226,12 @@ bool CutSequenceController::startBatchSequence() {
         return false;
     }
 
-    // Set up batch parameters
-    _batchStartPosition = _lastCompletedPosition;
+    // CRITICAL FIX: Set up batch parameters correctly
+    _batchStartPosition = _lastCompletedPosition;  // Where we're starting from (0-based for completed)
     _batchCompletedCount = 0;
-    _currentIndex = _batchStartPosition;
+
+    // IMPORTANT: _currentIndex should point to the NEXT position to cut
+    _currentIndex = _lastCompletedPosition;  // This will be incremented before cutting
 
     // Log Y positions for verification
     ClearCore::ConnectorUsb.Send("[CutSeq] Y positions - Start: ");
@@ -239,16 +241,20 @@ bool CutSequenceController::startBatchSequence() {
     ClearCore::ConnectorUsb.Send(", Retract: ");
     ClearCore::ConnectorUsb.SendLine(_yRetract);
 
-    // Start sequence
+    // Start sequence - ALWAYS begin with retract position
     _state = SEQUENCE_MOVING_TO_RETRACT;
 
-    ClearCore::ConnectorUsb.Send("[CutSeq] Starting batch from position ");
-    ClearCore::ConnectorUsb.Send(_batchStartPosition + 1); // 1-based for display
-    ClearCore::ConnectorUsb.Send(" (index ");
-    ClearCore::ConnectorUsb.Send(_batchStartPosition);
-    ClearCore::ConnectorUsb.Send(") with ");
-    ClearCore::ConnectorUsb.Send(_batchSize);
-    ClearCore::ConnectorUsb.SendLine(" cuts");
+    ClearCore::ConnectorUsb.Send("[CutSeq] Starting batch from job zero (position ");
+    ClearCore::ConnectorUsb.Send(_lastCompletedPosition);
+    ClearCore::ConnectorUsb.Send("), will cut positions ");
+    ClearCore::ConnectorUsb.Send(_lastCompletedPosition + 1);
+    ClearCore::ConnectorUsb.Send(" through ");
+    int lastCutInBatch = _lastCompletedPosition + _batchSize;
+    if (lastCutInBatch > _xIncrements.size()) {
+        lastCutInBatch = _xIncrements.size();
+    }
+    ClearCore::ConnectorUsb.Send(lastCutInBatch);
+    ClearCore::ConnectorUsb.SendLine("");
 
     return true;
 }
@@ -293,7 +299,7 @@ void CutSequenceController::updateMovingToRetract() {
     // Check if already at retract position
     if (isAtPosition(_yRetract, currentY)) {
         _state = SEQUENCE_MOVING_TO_X;
-        ClearCore::ConnectorUsb.SendLine("[CutSeq] Already at retract height");
+        ClearCore::ConnectorUsb.SendLine("[CutSeq] Already at retract height, moving to X position");
         return;
     }
 
@@ -308,32 +314,38 @@ void CutSequenceController::updateMovingToRetract() {
     // Check if reached retract position
     if (isAtPosition(_yRetract, currentY)) {
         _state = SEQUENCE_MOVING_TO_X;
-        ClearCore::ConnectorUsb.SendLine("[CutSeq] At retract height");
+        ClearCore::ConnectorUsb.SendLine("[CutSeq] At retract height, proceeding to X move");
     }
 }
 
 void CutSequenceController::updateMovingToX() {
     auto& motion = MotionController::Instance();
 
-    // Get target X for current cut
-    if (_currentIndex >= _xIncrements.size()) {
-        ClearCore::ConnectorUsb.Send("[CutSeq] ERROR: Current index (");
-        ClearCore::ConnectorUsb.Send(_currentIndex);
-        ClearCore::ConnectorUsb.Send(") >= total cuts (");
+    // CRITICAL FIX: Calculate next position to cut correctly
+    int nextCutPosition = _currentIndex + 1;  // 1-based position number
+    int arrayIndex = nextCutPosition - 1;     // 0-based array index
+
+    if (nextCutPosition > _xIncrements.size()) {
+        ClearCore::ConnectorUsb.Send("[CutSeq] ERROR: Next cut position (");
+        ClearCore::ConnectorUsb.Send(nextCutPosition);
+        ClearCore::ConnectorUsb.Send(") > total cuts (");
         ClearCore::ConnectorUsb.Send(static_cast<int>(_xIncrements.size()));
         ClearCore::ConnectorUsb.SendLine(")");
+        _state = SEQUENCE_COMPLETED;
         return;
     }
 
-    float targetX = _xIncrements[_currentIndex];
+    float targetX = _xIncrements[arrayIndex];
 
     // Start move if not already moving
     if (!motion.isAxisMoving(AXIS_X)) {
         motion.moveTo(AXIS_X, targetX, 1.0f);
         _targetX = targetX;
         ClearCore::ConnectorUsb.Send("[CutSeq] Moving X to position ");
-        ClearCore::ConnectorUsb.Send(_currentIndex + 1);
-        ClearCore::ConnectorUsb.Send(" (");
+        ClearCore::ConnectorUsb.Send(nextCutPosition);  // 1-based for display
+        ClearCore::ConnectorUsb.Send(" (array[");
+        ClearCore::ConnectorUsb.Send(arrayIndex);
+        ClearCore::ConnectorUsb.Send("] = ");
         ClearCore::ConnectorUsb.Send(targetX);
         ClearCore::ConnectorUsb.SendLine(")");
     }
@@ -342,7 +354,8 @@ void CutSequenceController::updateMovingToX() {
     if (isAtPosition(targetX, _currentXPosition)) {
         _state = SEQUENCE_MOVING_TO_START;
         ClearCore::ConnectorUsb.Send("[CutSeq] At X position ");
-        ClearCore::ConnectorUsb.SendLine(targetX);
+        ClearCore::ConnectorUsb.Send(nextCutPosition);
+        ClearCore::ConnectorUsb.SendLine("");
     }
 }
 
@@ -363,15 +376,15 @@ void CutSequenceController::updateMovingToStart() {
         _state = SEQUENCE_CUTTING;
 
         // Start torque-controlled feed
-        auto& posData = CutPositionData::Instance();
         float cutPressure = 70.0f;  // Should get from settings
         float feedRate = 0.5f;      // Should get from settings
 
         motion.setTorqueTarget(AXIS_Y, cutPressure);
         motion.startTorqueControlledFeed(AXIS_Y, _yCutStop, feedRate);
 
+        int nextCutPosition = _currentIndex + 1;  // 1-based position number
         ClearCore::ConnectorUsb.Send("[CutSeq] Starting cut at position ");
-        ClearCore::ConnectorUsb.Send(_currentIndex + 1); // 1-based for display
+        ClearCore::ConnectorUsb.Send(nextCutPosition);
         ClearCore::ConnectorUsb.Send(" from Y=");
         ClearCore::ConnectorUsb.Send(_yCutStart);
         ClearCore::ConnectorUsb.Send(" to Y=");
@@ -383,14 +396,15 @@ void CutSequenceController::updateCutting() {
     auto& motion = MotionController::Instance();
     float currentY = motion.getAbsoluteAxisPosition(AXIS_Y);
 
-    // Check if cut is complete - be more specific about completion detection
+    // Check if cut is complete
     bool feedComplete = !motion.isInTorqueControlledFeed(AXIS_Y);
-    bool atCutStop = isAtPosition(_yCutStop, currentY, 0.05f); // Use larger tolerance for cut stop
+    bool atCutStop = isAtPosition(_yCutStop, currentY, 0.05f);
 
     if (feedComplete && atCutStop) {
-        // Mark this position as completed
+        // CRITICAL FIX: Update position tracking correctly
+        _currentIndex++;  // Advance to the position we just completed
         _batchCompletedCount++;
-        _lastCompletedPosition = _currentIndex + 1; // Store as 1-based
+        _lastCompletedPosition = _currentIndex;  // Update job zero (1-based)
         savePositionState();
 
         _state = SEQUENCE_RETRACTING;
@@ -400,18 +414,20 @@ void CutSequenceController::updateCutting() {
         ClearCore::ConnectorUsb.Send(_batchCompletedCount);
         ClearCore::ConnectorUsb.Send("/");
         ClearCore::ConnectorUsb.Send(_batchSize);
-        ClearCore::ConnectorUsb.SendLine(" in batch)");
+        ClearCore::ConnectorUsb.Send(" in batch), job zero now at position ");
+        ClearCore::ConnectorUsb.SendLine(_lastCompletedPosition);
     }
     else if (feedComplete && !atCutStop) {
-        // Feed completed but not at target - this might indicate an issue
+        // Feed completed but not at target
         ClearCore::ConnectorUsb.Send("[CutSeq] WARNING: Feed complete but not at cut stop. Y=");
         ClearCore::ConnectorUsb.Send(currentY);
         ClearCore::ConnectorUsb.Send(", Target=");
         ClearCore::ConnectorUsb.SendLine(_yCutStop);
 
         // Still mark as complete and continue
+        _currentIndex++;
         _batchCompletedCount++;
-        _lastCompletedPosition = _currentIndex + 1;
+        _lastCompletedPosition = _currentIndex;
         savePositionState();
         _state = SEQUENCE_RETRACTING;
     }
@@ -420,11 +436,6 @@ void CutSequenceController::updateCutting() {
 void CutSequenceController::updateRetracting() {
     auto& motion = MotionController::Instance();
     float currentY = motion.getAbsoluteAxisPosition(AXIS_Y);
-
-    ClearCore::ConnectorUsb.Send("[CutSeq] Retracting - Current Y: ");
-    ClearCore::ConnectorUsb.Send(currentY);
-    ClearCore::ConnectorUsb.Send(", Target: ");
-    ClearCore::ConnectorUsb.SendLine(_yRetract);
 
     // Start move if not already moving
     if (!motion.isAxisMoving(AXIS_Y)) {
@@ -435,7 +446,7 @@ void CutSequenceController::updateRetracting() {
 
     // Check if at retract position
     if (isAtPosition(_yRetract, currentY)) {
-        ClearCore::ConnectorUsb.SendLine("[CutSeq] Retract complete, moving to next batch cut");
+        ClearCore::ConnectorUsb.SendLine("[CutSeq] Retract complete, checking for next cut");
         moveToNextBatchCut();
     }
 }
@@ -452,29 +463,30 @@ void CutSequenceController::moveToNextBatchCut() {
 
     // Check if batch is complete
     if (_batchCompletedCount >= _batchSize) {
-        _state = SEQUENCE_COMPLETED;
-        ClearCore::ConnectorUsb.Send("[CutSeq] Batch size limit reached! Cut ");
+        // CRITICAL FIX: Reset to IDLE so next batch can start
+        _state = SEQUENCE_IDLE;  // Changed from SEQUENCE_COMPLETED
+        ClearCore::ConnectorUsb.Send("[CutSeq] Batch completed! Cut ");
         ClearCore::ConnectorUsb.Send(_batchCompletedCount);
-        ClearCore::ConnectorUsb.SendLine(" positions");
+        ClearCore::ConnectorUsb.Send(" positions, job zero now at position ");
+        ClearCore::ConnectorUsb.Send(_lastCompletedPosition);
+        ClearCore::ConnectorUsb.SendLine(", ready for next batch");
         return;
     }
 
-    // Check if we've reached the end of all positions
-    if (_currentIndex + 1 >= _xIncrements.size()) {
-        _state = SEQUENCE_COMPLETED;
+    // Check if we've reached the end of all positions  
+    if (_currentIndex >= _xIncrements.size()) {
+        _state = SEQUENCE_COMPLETED;  // Only use COMPLETED when ALL cuts done
         ClearCore::ConnectorUsb.SendLine("[CutSeq] All positions completed!");
         return;
     }
 
-    // CRITICAL FIX: Move to next cut in batch
-    _currentIndex++;  // Advance to next X position
+    // Continue to next cut in batch
     _state = SEQUENCE_MOVING_TO_X;
 
+    int nextPosition = _currentIndex + 1;  // Next position to cut (1-based)
     ClearCore::ConnectorUsb.Send("[CutSeq] Moving to next cut: position ");
-    ClearCore::ConnectorUsb.Send(_currentIndex + 1); // 1-based for display
-    ClearCore::ConnectorUsb.Send(" (X=");
-    ClearCore::ConnectorUsb.Send(_xIncrements[_currentIndex]);
-    ClearCore::ConnectorUsb.SendLine(")");
+    ClearCore::ConnectorUsb.Send(nextPosition);
+    ClearCore::ConnectorUsb.SendLine("");
 }
 
 void CutSequenceController::pause() {
@@ -514,6 +526,7 @@ void CutSequenceController::abort() {
     ClearCore::ConnectorUsb.SendLine("[CutSeq] Aborted");
 }
 
+// IMPORTANT: Override isActive to properly handle COMPLETED state
 bool CutSequenceController::isActive() const {
     return (_state != SEQUENCE_IDLE &&
         _state != SEQUENCE_COMPLETED &&
