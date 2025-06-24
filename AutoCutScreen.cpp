@@ -29,11 +29,24 @@ void AutoCutScreen::onShow() {
     updateDisplay();
 }
 
+// ENHANCED: onHide with spindle shutdown
 void AutoCutScreen::onHide() {
+    auto& cutSeq = CutSequenceController::Instance();
+    auto& motion = MotionController::Instance();
+
     // Only abort if actually running to avoid unnecessary work
-    if (CutSequenceController::Instance().isActive()) {
-        CutSequenceController::Instance().abort();
+    if (cutSeq.isActive()) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Aborting active sequence due to screen exit");
+        cutSeq.abort();
     }
+
+    // CRITICAL: Always stop spindle when exiting AutoCut screen
+    if (motion.IsSpindleRunning()) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Stopping spindle due to screen exit");
+        motion.StopSpindle();
+        updateButtonState(WINBUTTON_SPINDLE_F5, false, nullptr, 0);
+    }
+
     _torqueControlUI.onHide();  // Clean up torque control UI
 }
 
@@ -90,10 +103,11 @@ void AutoCutScreen::startCycle() {
         return;
     }
 
-    // Validate that setup has been done
+    // Check if setup has been properly configured
     if (cutSeq.getTotalCuts() == 0) {
         ClearCore::ConnectorUsb.SendLine("[AutoCut] Error: No cuts configured - press Setup Auto Cut first");
-        flashButtonError(WINBUTTON_START_AUTOFEED_F5);
+        flashSetupAutocutButton();
+        updateButtonState(WINBUTTON_START_AUTOFEED_F5, false, nullptr, 0);
         return;
     }
 
@@ -104,10 +118,16 @@ void AutoCutScreen::startCycle() {
         return;
     }
 
-    // CRITICAL FIX: Use the batch size that was set in Setup Autocut screen
-    // DO NOT override it with all remaining cuts
+    // Validate batch size
     int configuredBatchSize = cutSeq.getBatchSize();
     int remainingCuts = cutSeq.getRemainingPositions();
+
+    if (configuredBatchSize <= 0) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Error: Invalid batch size - please configure in Setup Auto Cut");
+        flashSetupAutocutButton();
+        updateButtonState(WINBUTTON_START_AUTOFEED_F5, false, nullptr, 0);
+        return;
+    }
 
     ClearCore::ConnectorUsb.Send("[AutoCut] Configured batch size from Setup: ");
     ClearCore::ConnectorUsb.SendLine(configuredBatchSize);
@@ -141,10 +161,7 @@ void AutoCutScreen::startCycle() {
         ClearCore::ConnectorUsb.Send(configuredBatchSize);
         ClearCore::ConnectorUsb.Send(" cuts configured, ");
         ClearCore::ConnectorUsb.Send(remainingCuts);
-        ClearCore::ConnectorUsb.SendLine(" total remaining");
-
-        // Keep start button highlighted while running
-        // (will be cleared in update() when cycle completes)
+        ClearCore::ConnectorUsb.SendLine(" total remaining (spindle will start automatically)");
     }
     else {
         ClearCore::ConnectorUsb.SendLine("[AutoCut] Failed to start batch sequence");
@@ -163,7 +180,7 @@ void AutoCutScreen::togglePauseResume() {
         cutSeq.pause();
         updateButtonState(WINBUTTON_SLIDE_HOLD_F5, true, "[AutoCut] Cycle paused", 0);
     }
-    else {
+    else if (cutSeq.isPaused()) {
         // Currently paused - resume it
         cutSeq.resume();
         updateButtonState(WINBUTTON_SLIDE_HOLD_F5, false, "[AutoCut] Cycle resumed", 0);
@@ -184,17 +201,24 @@ void AutoCutScreen::resumeCycle() {
     updateDisplay();
 }
 
+// ENHANCED: cancelCycle with spindle control
 void AutoCutScreen::cancelCycle() {
     auto& cutSeq = CutSequenceController::Instance();
+    auto& motion = MotionController::Instance();
+
+    ClearCore::ConnectorUsb.SendLine("[AutoCut] Cancel cycle requested");
+
+    // Abort the sequence (this will stop spindle if auto-controlled)
     cutSeq.abort();
 
     // CRITICAL: Reset torque control properly
-    MotionController::Instance().abortTorqueControlledFeed(AXIS_Y);
-    MotionController::Instance().setTorqueTarget(AXIS_Y, 0.0f);  // Clear torque target
+    motion.abortTorqueControlledFeed(AXIS_Y);
+    motion.setTorqueTarget(AXIS_Y, 0.0f);  // Clear torque target
 
     _torqueControlUI.setCuttingActive(false);
     updateButtonState(WINBUTTON_START_AUTOFEED_F5, false, "[AutoCut] Cycle cancelled", 0);
     updateButtonState(WINBUTTON_SLIDE_HOLD_F5, false, nullptr, 0);
+
     updateDisplay();
 }
 
@@ -227,8 +251,28 @@ void AutoCutScreen::adjustMaxSpeed() {
     updateDisplay();
 }
 
+// ENHANCED: moveToStartPosition with spindle shutdown
 void AutoCutScreen::moveToStartPosition() {
-    ClearCore::ConnectorUsb.SendLine("[AutoCut] Move to Start Position (Rapid to Job Zero)");
+    auto& cutSeq = CutSequenceController::Instance();
+    auto& motion = MotionController::Instance();
+
+    ClearCore::ConnectorUsb.SendLine("[AutoCut] Move to Start Position (Rapid to Job Zero) - Exit and Return");
+
+    // CRITICAL: Always stop spindle before exit and return
+    if (motion.IsSpindleRunning()) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Stopping spindle for Exit and Return");
+        motion.StopSpindle();
+        updateButtonState(WINBUTTON_SPINDLE_F5, false, nullptr, 0);
+    }
+
+    // If sequence is active, abort it first
+    if (cutSeq.isActive()) {
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Aborting active sequence for Exit and Return");
+        cutSeq.abort();
+        updateButtonState(WINBUTTON_START_AUTOFEED_F5, false, nullptr, 0);
+        updateButtonState(WINBUTTON_SLIDE_HOLD_F5, false, nullptr, 0);
+        _torqueControlUI.setCuttingActive(false);
+    }
 
     // Visual feedback
     updateButtonState(WINBUTTON_MOVE_TO_START_POSITION, true, nullptr, 0);
@@ -250,7 +294,7 @@ void AutoCutScreen::moveToStartPosition() {
     ClearCore::ConnectorUsb.SendLine(" (limited to >= 0.0)");
 
     // Start by moving Y to retract position at full speed
-    MotionController::Instance().moveTo(AXIS_Y, desiredRetractPos, 1.0f);
+    motion.moveTo(AXIS_Y, desiredRetractPos, 1.0f);
     _rapidState = MovingYToRetract;
 
     delay(200);
@@ -270,22 +314,47 @@ void AutoCutScreen::flashButtonError(uint16_t buttonId) {
     updateButtonState(buttonId, false, nullptr, 0);
 }
 
+// Simple helper method for Setup Auto Cut button flashing
+void AutoCutScreen::flashSetupAutocutButton() {
+    ClearCore::ConnectorUsb.SendLine("[AutoCut] Please configure cutting parameters in Setup Auto Cut first");
+
+    // Flash the Setup Auto Cut button to draw attention
+    for (int i = 0; i < 5; i++) {
+        updateButtonState(WINBUTTON_SETUP_AUTOCUT_F5, true, nullptr, 200);
+        updateButtonState(WINBUTTON_SETUP_AUTOCUT_F5, false, nullptr, 200);
+    }
+    updateButtonState(WINBUTTON_SETUP_AUTOCUT_F5, false, nullptr, 0);
+}
+
+// ENHANCED: toggleSpindle with sequence awareness
 void AutoCutScreen::toggleSpindle() {
     auto& motion = MotionController::Instance();
+    auto& cutSeq = CutSequenceController::Instance();
 
     if (motion.IsSpindleRunning()) {
         motion.StopSpindle();
-        updateButtonState(WINBUTTON_SPINDLE_F5, false, "[AutoCut] Spindle stopped", 0);
+        updateButtonState(WINBUTTON_SPINDLE_F5, false, "[AutoCut] Spindle stopped manually", 0);
+
+        // If sequence is running, mark as manual control
+        if (cutSeq.isActive() || cutSeq.isPaused()) {
+            cutSeq.manualSpindleStop();
+        }
     }
     else {
         // Get RPM from settings
         float rpm = SettingsManager::Instance().settings().spindleRPM;
 
-        ClearCore::ConnectorUsb.Send("[AutoCut] Starting spindle at rpm: ");
-        ClearCore::ConnectorUsb.SendLine(rpm);
+        ClearCore::ConnectorUsb.Send("[AutoCut] Starting spindle manually at ");
+        ClearCore::ConnectorUsb.Send(rpm);
+        ClearCore::ConnectorUsb.SendLine(" RPM");
 
         motion.StartSpindle(rpm);
-        updateButtonState(WINBUTTON_SPINDLE_F5, true, "[AutoCut] Spindle started", 0);
+        updateButtonState(WINBUTTON_SPINDLE_F5, true, "[AutoCut] Spindle started manually", 0);
+
+        // If sequence is running, mark as manual control
+        if (cutSeq.isActive() || cutSeq.isPaused()) {
+            cutSeq.manualSpindleStart();
+        }
     }
 
     updateDisplay();
@@ -295,10 +364,12 @@ void AutoCutScreen::openSettings() {
     ScreenManager::Instance().ShowSettings();
 }
 
+// ENHANCED: updateDisplay with spindle state information
 void AutoCutScreen::updateDisplay() {
     auto& seq = CutSequenceController::Instance();
     auto& posData = CutPositionData::Instance();
     auto& cutData = ScreenManager::Instance().GetCutData();
+    auto& motion = MotionController::Instance();
 
     // Stock Length (inches, scaled to 0.001)
     float stockLength = cutData.stockLength;
@@ -309,7 +380,7 @@ void AutoCutScreen::updateDisplay() {
     int currentCutPosition = 0;
     if (cutData.useStockZero && cutData.increment > 0.0f) {
         // Get current absolute X position
-        float currentX = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
+        float currentX = motion.getAbsoluteAxisPosition(AXIS_X);
 
         // Calculate position relative to stock zero
         float relativeX = currentX - cutData.positionZero;
@@ -322,7 +393,7 @@ void AutoCutScreen::updateDisplay() {
     }
     else if (!cutData.useStockZero && cutData.increment > 0.0f) {
         // If not using stock zero, calculate from absolute zero
-        float currentX = MotionController::Instance().getAbsoluteAxisPosition(AXIS_X);
+        float currentX = motion.getAbsoluteAxisPosition(AXIS_X);
         currentCutPosition = static_cast<int>(round(currentX / cutData.increment));
         if (currentCutPosition < 0) currentCutPosition = 0;
     }
@@ -339,13 +410,18 @@ void AutoCutScreen::updateDisplay() {
 
     // Show progress percentage
     float progress = seq.getBatchProgressPercent();
-    // You could add a progress bar or percentage display
 
-    // Show state-specific information
+    // Enhanced state-specific information with spindle states
     switch (seq.getState()) {
+    case CutSequenceController::SEQUENCE_STARTING_SPINDLE:
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Display: Starting spindle...");
+        break;
+    case CutSequenceController::SEQUENCE_SPINDLE_READY:
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Display: Spindle ready");
+        break;
     case CutSequenceController::SEQUENCE_CUTTING: {
         // Show distance to go in current cut
-        float yCurrentPos = MotionController::Instance().getAbsoluteAxisPosition(AXIS_Y);
+        float yCurrentPos = motion.getAbsoluteAxisPosition(AXIS_Y);
         float yCutStop = seq.getYCutStop();
         float distanceToGo = yCutStop - yCurrentPos;
         if (distanceToGo < 0) distanceToGo = 0;
@@ -357,14 +433,22 @@ void AutoCutScreen::updateDisplay() {
         // Could show "Moving to position X"
         break;
     case CutSequenceController::SEQUENCE_COMPLETED:
-        // Show completion message or flash indicator
+        ClearCore::ConnectorUsb.SendLine("[AutoCut] Display: Sequence completed");
         break;
     }
 
-    // Spindle RPM
-    uint16_t rpm = MotionController::Instance().IsSpindleRunning() ?
-        static_cast<uint16_t>(MotionController::Instance().CommandedRPM()) : 0;
+    // Enhanced Spindle RPM display
+    uint16_t rpm = motion.IsSpindleRunning() ?
+        static_cast<uint16_t>(motion.CommandedRPM()) : 0;
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_RPM_F5, rpm);
+
+    // Update spindle button state to match actual spindle status
+    bool spindleRunning = motion.IsSpindleRunning();
+    static bool lastSpindleState = false;
+    if (spindleRunning != lastSpindleState) {
+        updateButtonState(WINBUTTON_SPINDLE_F5, spindleRunning, nullptr, 0);
+        lastSpindleState = spindleRunning;
+    }
 
     // Thickness
     float thickness = cutData.thickness;
@@ -382,6 +466,7 @@ void AutoCutScreen::updateButtonState(uint16_t buttonId, bool state, const char*
     }
 }
 
+// ENHANCED: update with spindle state monitoring
 void AutoCutScreen::update() {
     // CRITICAL: Update the cut sequence controller state machine
     CutSequenceController::Instance().update();

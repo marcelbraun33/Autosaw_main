@@ -1,4 +1,4 @@
-// CutSequenceController.cpp - FINAL Fixed with correct 1-based position tracking and enhanced debug
+// CutSequenceController.cpp - FINAL with spindle control integration
 #include "CutSequenceController.h"
 #include "MotionController.h"
 #include "CutPositionData.h"
@@ -21,6 +21,9 @@ CutSequenceController::CutSequenceController() {
     // Initialize with proper starting values
     _lastCompletedPosition = 0;  // 0 means no positions completed yet
     _currentIndex = 0;           // Internal 0-based index
+    _spindleAutoControlled = true;
+    _spindleStartedBySequence = false;
+    _manualSpindleControl = false;
     loadPositionState();
 }
 
@@ -53,6 +56,11 @@ void CutSequenceController::reset() {
     _lastCompletedPosition = 0;  // Reset to beginning
     _batchCompletedCount = 0;
     _state = SEQUENCE_IDLE;
+
+    // Reset spindle control state
+    _spindleStartedBySequence = false;
+    _manualSpindleControl = false;
+
     clearPositionState();
 
     ClearCore::ConnectorUsb.SendLine("[CutSeq] Reset - job zero returned to position 0, next cut will be position 1");
@@ -239,6 +247,7 @@ void CutSequenceController::clearPositionState() {
     savePositionState();
 }
 
+// ENHANCED: startBatchSequence with spindle control
 bool CutSequenceController::startBatchSequence() {
     ClearCore::ConnectorUsb.Send("[CutSeq] startBatchSequence called - State: ");
     ClearCore::ConnectorUsb.SendLine(static_cast<int>(_state));
@@ -280,8 +289,18 @@ bool CutSequenceController::startBatchSequence() {
     ClearCore::ConnectorUsb.Send(", Retract: ");
     ClearCore::ConnectorUsb.SendLine(_yRetract);
 
-    // Start sequence - ALWAYS begin with retract position
-    _state = SEQUENCE_MOVING_TO_RETRACT;
+    // Start with spindle control if enabled
+    if (_spindleAutoControlled) {
+        startSpindleIfNeeded();
+        _state = SEQUENCE_STARTING_SPINDLE;
+        _spindleStartTime = ClearCore::TimingMgr.Milliseconds();
+        ClearCore::ConnectorUsb.SendLine("[CutSeq] Starting sequence with spindle startup");
+    }
+    else {
+        // Skip spindle startup, go directly to retract
+        _state = SEQUENCE_MOVING_TO_RETRACT;
+        ClearCore::ConnectorUsb.SendLine("[CutSeq] Starting sequence without spindle control");
+    }
 
     ClearCore::ConnectorUsb.Send("[CutSeq] Starting batch from job zero (position ");
     ClearCore::ConnectorUsb.Send(_lastCompletedPosition);
@@ -298,6 +317,7 @@ bool CutSequenceController::startBatchSequence() {
     return true;
 }
 
+// ENHANCED: update() with spindle states
 void CutSequenceController::update() {
     if (_state == SEQUENCE_IDLE || _state == SEQUENCE_PAUSED ||
         _state == SEQUENCE_COMPLETED || _state == SEQUENCE_ABORTED) {
@@ -311,6 +331,12 @@ void CutSequenceController::update() {
 
     // State machine
     switch (_state) {
+    case SEQUENCE_STARTING_SPINDLE:
+        updateStartingSpindle();
+        break;
+    case SEQUENCE_SPINDLE_READY:
+        updateSpindleReady();
+        break;
     case SEQUENCE_MOVING_TO_RETRACT:
         updateMovingToRetract();
         break;
@@ -329,6 +355,82 @@ void CutSequenceController::update() {
     default:
         break;
     }
+}
+
+// NEW: Spindle control methods
+void CutSequenceController::updateStartingSpindle() {
+    // Wait for 1 second spin-up time
+    unsigned long elapsed = ClearCore::TimingMgr.Milliseconds() - _spindleStartTime;
+    if (elapsed >= 1000) { // 1 second spin-up
+        if (isSpindleReady()) {
+            ClearCore::ConnectorUsb.SendLine("[CutSeq] Spindle ready, proceeding to retract");
+            _state = SEQUENCE_SPINDLE_READY;
+        }
+        else {
+            ClearCore::ConnectorUsb.SendLine("[CutSeq] Warning: Spindle not ready after spin-up time, proceeding anyway");
+            _state = SEQUENCE_SPINDLE_READY; // Proceed anyway
+        }
+    }
+}
+
+void CutSequenceController::updateSpindleReady() {
+    // Spindle is ready, start the cutting sequence
+    _state = SEQUENCE_MOVING_TO_RETRACT;
+    ClearCore::ConnectorUsb.SendLine("[CutSeq] Spindle ready, starting cut sequence");
+}
+
+void CutSequenceController::startSpindleIfNeeded() {
+    auto& motion = MotionController::Instance();
+
+    if (!motion.IsSpindleRunning()) {
+        float rpm = SettingsManager::Instance().settings().spindleRPM;
+        ClearCore::ConnectorUsb.Send("[CutSeq] Starting spindle at ");
+        ClearCore::ConnectorUsb.Send(rpm);
+        ClearCore::ConnectorUsb.SendLine(" RPM");
+        motion.StartSpindle(rpm);
+        _spindleStartedBySequence = true;
+        _manualSpindleControl = false;
+    }
+    else {
+        ClearCore::ConnectorUsb.SendLine("[CutSeq] Spindle already running");
+        _spindleStartedBySequence = false; // We didn't start it
+    }
+}
+
+void CutSequenceController::stopSpindleIfControlled() {
+    auto& motion = MotionController::Instance();
+
+    // Only stop if we started it and auto-control is enabled
+    if (_spindleAutoControlled && _spindleStartedBySequence && !_manualSpindleControl) {
+        ClearCore::ConnectorUsb.SendLine("[CutSeq] Stopping spindle (sequence controlled)");
+        motion.StopSpindle();
+        _spindleStartedBySequence = false;
+    }
+    else {
+        ClearCore::ConnectorUsb.SendLine("[CutSeq] Leaving spindle running (manual control or not started by sequence)");
+    }
+}
+
+bool CutSequenceController::isSpindleReady() const {
+    auto& motion = MotionController::Instance();
+    return motion.IsSpindleRunning();
+}
+
+void CutSequenceController::manualSpindleStop() {
+    auto& motion = MotionController::Instance();
+    ClearCore::ConnectorUsb.SendLine("[CutSeq] Manual spindle stop during feed hold");
+    motion.StopSpindle();
+    _manualSpindleControl = true;
+}
+
+void CutSequenceController::manualSpindleStart() {
+    auto& motion = MotionController::Instance();
+    float rpm = SettingsManager::Instance().settings().spindleRPM;
+    ClearCore::ConnectorUsb.Send("[CutSeq] Manual spindle start during feed hold at ");
+    ClearCore::ConnectorUsb.Send(rpm);
+    ClearCore::ConnectorUsb.SendLine(" RPM");
+    motion.StartSpindle(rpm);
+    _manualSpindleControl = true;
 }
 
 void CutSequenceController::updateMovingToRetract() {
@@ -380,7 +482,7 @@ void CutSequenceController::updateMovingToX() {
     }
 
     // Array bounds check
-    if (targetArrayIndex >= _xIncrements.size()) {
+    if (targetArrayIndex >= static_cast<int>(_xIncrements.size())) {
         ClearCore::ConnectorUsb.Send("[CutSeq] ERROR: Array bounds - target index (");
         ClearCore::ConnectorUsb.Send(targetArrayIndex);
         ClearCore::ConnectorUsb.Send(") >= array size (");
@@ -506,6 +608,7 @@ void CutSequenceController::updateRetracting() {
     }
 }
 
+// ENHANCED: moveToNextBatchCut with spindle control
 void CutSequenceController::moveToNextBatchCut() {
     ClearCore::ConnectorUsb.Send("[CutSeq] moveToNextBatchCut: completed=");
     ClearCore::ConnectorUsb.Send(_batchCompletedCount);
@@ -518,6 +621,9 @@ void CutSequenceController::moveToNextBatchCut() {
 
     // Check if batch is complete
     if (_batchCompletedCount >= _batchSize) {
+        // Stop spindle if we control it
+        stopSpindleIfControlled();
+
         _state = SEQUENCE_IDLE;
         ClearCore::ConnectorUsb.Send("[CutSeq] Batch completed! Cut ");
         ClearCore::ConnectorUsb.Send(_batchCompletedCount);
@@ -529,6 +635,9 @@ void CutSequenceController::moveToNextBatchCut() {
 
     // CORRECTED: Check against total cutting positions
     if (_currentIndex >= getTotalCuts()) {
+        // Stop spindle if we control it
+        stopSpindleIfControlled();
+
         _state = SEQUENCE_COMPLETED;
         ClearCore::ConnectorUsb.SendLine("[CutSeq] All cutting positions completed!");
         return;
@@ -543,6 +652,7 @@ void CutSequenceController::moveToNextBatchCut() {
     ClearCore::ConnectorUsb.SendLine("");
 }
 
+// ENHANCED: pause with spindle handling
 void CutSequenceController::pause() {
     if (_state != SEQUENCE_IDLE && _state != SEQUENCE_COMPLETED &&
         _state != SEQUENCE_PAUSED && _state != SEQUENCE_ABORTED) {
@@ -554,36 +664,64 @@ void CutSequenceController::pause() {
             motion.pauseTorqueControlledFeed(AXIS_Y);
         }
 
-        ClearCore::ConnectorUsb.SendLine("[CutSeq] Paused");
+        // Note: We deliberately DO NOT stop the spindle during pause
+        // User can manually control it via the AutoCut screen button
+        ClearCore::ConnectorUsb.SendLine("[CutSeq] Paused (spindle remains running for manual control)");
     }
 }
 
+// ENHANCED: resume with spindle handling
 void CutSequenceController::resume() {
     if (_state == SEQUENCE_PAUSED) {
         _state = _pausedState;
+        _pausedState = SEQUENCE_IDLE;
 
         auto& motion = MotionController::Instance();
+
         if (_state == SEQUENCE_CUTTING) {
             motion.resumeTorqueControlledFeed(AXIS_Y);
+        }
+
+        // If spindle auto-control is enabled and spindle is off, restart it
+        if (_spindleAutoControlled && !motion.IsSpindleRunning()) {
+            ClearCore::ConnectorUsb.SendLine("[CutSeq] Restarting spindle after resume");
+            startSpindleIfNeeded();
+            _state = SEQUENCE_STARTING_SPINDLE;
+            _spindleStartTime = ClearCore::TimingMgr.Milliseconds();
         }
 
         ClearCore::ConnectorUsb.SendLine("[CutSeq] Resumed");
     }
 }
 
+// ENHANCED: abort with spindle control
 void CutSequenceController::abort() {
+    ClearCore::ConnectorUsb.SendLine("[CutSeq] Aborting sequence");
+
+    // Stop spindle if we control it
+    stopSpindleIfControlled();
+
     _state = SEQUENCE_ABORTED;
 
     auto& motion = MotionController::Instance();
     motion.abortTorqueControlledFeed(AXIS_Y);
 
-    ClearCore::ConnectorUsb.SendLine("[CutSeq] Aborted");
+    // Save current progress
+    savePositionState();
+
+    ClearCore::ConnectorUsb.SendLine("[CutSeq] Aborted, position saved");
 }
 
+// ENHANCED: isActive to include spindle states
 bool CutSequenceController::isActive() const {
     return (_state != SEQUENCE_IDLE &&
         _state != SEQUENCE_COMPLETED &&
-        _state != SEQUENCE_ABORTED);
+        _state != SEQUENCE_ABORTED &&
+        _state != SEQUENCE_PAUSED);
+}
+
+bool CutSequenceController::isPaused() const {
+    return _state == SEQUENCE_PAUSED;
 }
 
 float CutSequenceController::getBatchProgressPercent() const {
@@ -593,7 +731,7 @@ float CutSequenceController::getBatchProgressPercent() const {
 
 float CutSequenceController::getBatchTargetX(int batchPosition) const {
     int targetIndex = _batchStartPosition + batchPosition;
-    if (targetIndex >= 0 && targetIndex < _xIncrements.size()) {
+    if (targetIndex >= 0 && targetIndex < static_cast<int>(_xIncrements.size())) {
         return _xIncrements[targetIndex];
     }
     return 0.0f;
@@ -601,4 +739,15 @@ float CutSequenceController::getBatchTargetX(int batchPosition) const {
 
 bool CutSequenceController::isAtPosition(float target, float current, float tolerance) {
     return fabs(target - current) <= tolerance;
+}
+
+// Spindle control accessors
+bool CutSequenceController::isSpindleAutoControlled() const {
+    return _spindleAutoControlled;
+}
+
+void CutSequenceController::setSpindleAutoControlled(bool enabled) {
+    _spindleAutoControlled = enabled;
+    ClearCore::ConnectorUsb.Send("[CutSeq] Spindle auto-control set to: ");
+    ClearCore::ConnectorUsb.SendLine(enabled ? "ENABLED" : "DISABLED");
 }

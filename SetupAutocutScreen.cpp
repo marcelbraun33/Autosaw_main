@@ -1,4 +1,4 @@
-// SetupAutocutScreen.cpp - Enhanced debugging version
+// SetupAutocutScreen.cpp - Enhanced with zero prevention fixes
 #include "SetupAutocutScreen.h"
 #include "screenmanager.h"
 #include "CutSequenceController.h"
@@ -15,25 +15,33 @@ extern Genie genie;
 
 SetupAutocutScreen::SetupAutocutScreen(ScreenManager& mgr)
     : _mgr(mgr), _tempSlices(1), _editingSlices(false), _needsDisplayUpdate(false) {
-    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Constructor called");
+    ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Constructor called - initialized _tempSlices to 1");
 }
 
 void SetupAutocutScreen::onShow() {
     ClearCore::ConnectorUsb.SendLine("[SetupAutocut] onShow() - START");
 
-    // Minimal, fast initialization - defer expensive operations
+    // Get current batch size from controller
     auto& seq = CutSequenceController::Instance();
     int currentBatchSize = seq.getBatchSize();
 
     ClearCore::ConnectorUsb.Send("[SetupAutocut] Current batch size from controller: ");
     ClearCore::ConnectorUsb.SendLine(currentBatchSize);
 
+    // CRITICAL FIX: Never allow zero batch size - force minimum of 1
     if (currentBatchSize <= 0) {
+        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] FIXING: Zero batch size detected, forcing to 1");
         currentBatchSize = 1;
-        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Adjusted batch size to 1");
+        seq.setBatchSize(1);  // Immediately fix it in the controller
     }
 
+    // Set the display value, ensuring it's never zero
     _tempSlices = static_cast<float>(currentBatchSize);
+    if (_tempSlices <= 0.0f) {
+        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] FIXING: Zero _tempSlices detected, forcing to 1");
+        _tempSlices = 1.0f;
+    }
+
     _editingSlices = false;  // Ensure we start in non-editing mode
 
     ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Initializing MPG...");
@@ -50,9 +58,19 @@ void SetupAutocutScreen::onShow() {
     // Defer the expensive display updates to first update() call
     _needsDisplayUpdate = true;
 
-    // Enhanced logging
+    // Enhanced logging with final verification
     ClearCore::ConnectorUsb.Send("[SetupAutocut] onShow() completed with batch size ");
-    ClearCore::ConnectorUsb.SendLine(currentBatchSize);
+    ClearCore::ConnectorUsb.Send(currentBatchSize);
+    ClearCore::ConnectorUsb.Send(", _tempSlices = ");
+    ClearCore::ConnectorUsb.SendLine(static_cast<int>(_tempSlices));
+
+    // VERIFICATION: Double-check that we never have zero
+    if (seq.getBatchSize() <= 0 || _tempSlices <= 0.0f) {
+        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] CRITICAL ERROR: Still have zero values after fix!");
+    }
+    else {
+        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] VERIFIED: No zero values detected");
+    }
 }
 
 void SetupAutocutScreen::performAutomaticSetup() {
@@ -186,6 +204,7 @@ void SetupAutocutScreen::performAutomaticSetup() {
 
     ClearCore::ConnectorUsb.SendLine("[SetupAutocut] performAutomaticSetup() - EXIT SUCCESS");
 }
+
 // Add this new method to verify controller state
 void SetupAutocutScreen::debugControllerState() {
     ClearCore::ConnectorUsb.SendLine("[SetupAutocut] === CONTROLLER STATE DEBUG ===");
@@ -216,13 +235,15 @@ void SetupAutocutScreen::debugControllerState() {
     ClearCore::ConnectorUsb.Send("Max Batch Size: ");
     ClearCore::ConnectorUsb.SendLine(cutSeq.getMaxBatchSize());
 
+    ClearCore::ConnectorUsb.Send("Current Batch Size: ");
+    ClearCore::ConnectorUsb.SendLine(cutSeq.getBatchSize());
+
     ClearCore::ConnectorUsb.Send("Is Active: ");
     ClearCore::ConnectorUsb.SendLine(cutSeq.isActive() ? "YES" : "NO");
 
     ClearCore::ConnectorUsb.SendLine("[SetupAutocut] === END CONTROLLER DEBUG ===");
 }
 
-// Rest of the methods remain the same...
 void SetupAutocutScreen::onHide() {
     ClearCore::ConnectorUsb.SendLine("[SetupAutocut] onHide() called");
 
@@ -285,12 +306,20 @@ void SetupAutocutScreen::setSlicesToCut() {
         // Stop editing with MPG
         mpg.setEnabled(false);
 
-        // Apply the value
+        // Apply the value with enhanced safety
         int maxBatch = CutSequenceController::Instance().getMaxBatchSize();
         int intSlices = static_cast<int>(round(_tempSlices));
 
-        if (intSlices < 1) intSlices = 1;
-        if (intSlices > maxBatch) intSlices = maxBatch;
+        // ENHANCED SAFETY: Triple-check bounds
+        if (intSlices < 1) {
+            ClearCore::ConnectorUsb.SendLine("[SetupAutocut] setSlicesToCut: Forcing minimum 1");
+            intSlices = 1;
+        }
+        if (intSlices > maxBatch) {
+            ClearCore::ConnectorUsb.Send("[SetupAutocut] setSlicesToCut: Capping at ");
+            ClearCore::ConnectorUsb.SendLine(maxBatch);
+            intSlices = maxBatch;
+        }
 
         _tempSlices = static_cast<float>(intSlices);
 
@@ -299,6 +328,15 @@ void SetupAutocutScreen::setSlicesToCut() {
 
         ClearCore::ConnectorUsb.Send("[SetupAutocut] Set batch size to: ");
         ClearCore::ConnectorUsb.SendLine(intSlices);
+
+        // VERIFICATION: Make sure controller actually has the right value
+        int verifyBatch = CutSequenceController::Instance().getBatchSize();
+        if (verifyBatch != intSlices) {
+            ClearCore::ConnectorUsb.Send("[SetupAutocut] WARNING: Controller batch size mismatch! Expected ");
+            ClearCore::ConnectorUsb.Send(intSlices);
+            ClearCore::ConnectorUsb.Send(", got ");
+            ClearCore::ConnectorUsb.SendLine(verifyBatch);
+        }
 
         // Show inactive mode indicator
         showButtonSafe(WINBUTTON_SLICES_TO_CUT_F9, 0);
@@ -311,6 +349,12 @@ void SetupAutocutScreen::updateSlicesToCutButton() {
 
 void SetupAutocutScreen::updateDisplay() {
     auto& seq = CutSequenceController::Instance();
+
+    // ENHANCED: Ensure _tempSlices is never zero before displaying
+    if (_tempSlices <= 0.0f) {
+        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] updateDisplay: Fixing zero _tempSlices");
+        _tempSlices = 1.0f;
+    }
 
     // Current batch size (slices to cut)
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SLICES_TO_CUT_F9, static_cast<uint16_t>(_tempSlices));
@@ -335,10 +379,15 @@ void SetupAutocutScreen::updateDisplay() {
     auto& cutData = ScreenManager::Instance().GetCutData();
     genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_STOCK_LENGTH_F9, static_cast<uint16_t>(cutData.stockLength * 1000));
 
-    // Set batch size limits
+    // ENHANCED: Set batch size limits with zero prevention
     int maxBatch = seq.getMaxBatchSize();
     if (_tempSlices > maxBatch) {
-        _tempSlices = maxBatch;
+        _tempSlices = static_cast<float>(maxBatch);
+        genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SLICES_TO_CUT_F9, static_cast<uint16_t>(_tempSlices));
+    }
+    if (_tempSlices < 1.0f) {
+        ClearCore::ConnectorUsb.SendLine("[SetupAutocut] updateDisplay: Preventing _tempSlices below 1");
+        _tempSlices = 1.0f;
         genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SLICES_TO_CUT_F9, static_cast<uint16_t>(_tempSlices));
     }
 }
@@ -359,13 +408,26 @@ void SetupAutocutScreen::onEncoderChanged(int deltaClicks) {
             // Apply the delta using our fixed increment
             _tempSlices += delta * MPG_FIXED_INCREMENT;
 
-            // Enforce limits
+            // ENHANCED BOUNDS CHECKING: Absolutely never allow zero or negative
             int maxBatch = CutSequenceController::Instance().getMaxBatchSize();
-            if (_tempSlices < 1.0f) _tempSlices = 1.0f;
-            if (_tempSlices > maxBatch) _tempSlices = static_cast<float>(maxBatch);
+            if (_tempSlices < 1.0f) {
+                ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Encoder: Preventing below 1, setting to 1");
+                _tempSlices = 1.0f;
+            }
+            if (_tempSlices > maxBatch) {
+                ClearCore::ConnectorUsb.Send("[SetupAutocut] Encoder: Capping at max batch size ");
+                ClearCore::ConnectorUsb.SendLine(maxBatch);
+                _tempSlices = static_cast<float>(maxBatch);
+            }
 
             // Round to nearest integer since partial slices don't make sense
             _tempSlices = round(_tempSlices);
+
+            // SAFETY CHECK: Ensure rounding didn't create zero
+            if (_tempSlices < 1.0f) {
+                ClearCore::ConnectorUsb.SendLine("[SetupAutocut] Encoder: Post-round safety fix to 1");
+                _tempSlices = 1.0f;
+            }
 
             // Update display
             genie.WriteObject(GENIE_OBJ_LED_DIGITS, LEDDIGITS_SLICES_TO_CUT_F9,

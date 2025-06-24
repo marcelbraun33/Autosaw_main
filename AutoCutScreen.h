@@ -47,6 +47,8 @@ private:
         MovingYToRetract,
         MovingXToZero
     };
+    // Add these to the private section of AutoCutScreen.h:
+    void flashSetupAutocutButton();
 
     RapidToZeroState _rapidState = RapidIdle;
 

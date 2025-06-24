@@ -1,14 +1,16 @@
-// CutSequenceController.h - Enhanced with batch cutting and persistence
+// CutSequenceController.h - Enhanced with spindle control
 #pragma once
 #include <vector>
 #include <cmath>
-#include <stdint.h>  // Add this include for uint32_t
+#include <stdint.h>
 
 class CutSequenceController {
 public:
     // State machine for sequence execution
     enum SequenceState {
         SEQUENCE_IDLE,
+        SEQUENCE_STARTING_SPINDLE,      // NEW: Turning on spindle, waiting for spin-up
+        SEQUENCE_SPINDLE_READY,         // NEW: Spindle running, ready to begin cuts
         SEQUENCE_MOVING_TO_RETRACT,
         SEQUENCE_MOVING_TO_X,
         SEQUENCE_MOVING_TO_START,
@@ -50,10 +52,10 @@ public:
     int getPositionIndexForX(float x, float tolerance = 0.001f) const;
     float getXForIndex(int idx) const;
 
-    // === NEW BATCH CUTTING METHODS ===
+    // === BATCH CUTTING METHODS ===
     // Batch control
     void setLastCompletedPosition(int position);
-    int getLastCompletedPosition() const;  // Declaration only - implementation in .cpp
+    int getLastCompletedPosition() const;
     void setBatchSize(int size);
     int getBatchSize() const { return _batchSize; }
     int getRemainingPositions() const;
@@ -74,7 +76,7 @@ public:
     // State queries
     SequenceState getState() const { return _state; }
     bool isActive() const;
-    bool isPaused() const { return _state == SEQUENCE_PAUSED; }
+    bool isPaused() const;
 
     // Progress tracking
     float getBatchProgressPercent() const;
@@ -82,6 +84,14 @@ public:
 
     // Get target X for a given batch position (0-based within batch)
     float getBatchTargetX(int batchPosition) const;
+
+    // === NEW SPINDLE CONTROL METHODS ===
+    bool isSpindleAutoControlled() const;
+    void setSpindleAutoControlled(bool enabled);
+
+    // Manual spindle control during feed hold
+    void manualSpindleStop();
+    void manualSpindleStart();
 
 private:
     CutSequenceController();
@@ -94,11 +104,11 @@ private:
     int _currentIndex = 0;
     float _currentXPosition = 0.0f;
 
-    // === NEW BATCH MEMBERS ===
-    int _lastCompletedPosition = 0;  // Last position that was cut (1-based, 0 = none)
-    int _batchSize = 1;              // Number of cuts in current batch
-    int _batchStartPosition = 0;     // Starting position for current batch (0-based)
-    int _batchCompletedCount = 0;    // Cuts completed in current batch
+    // === BATCH MEMBERS ===
+    int _lastCompletedPosition = 0;
+    int _batchSize = 1;
+    int _batchStartPosition = 0;
+    int _batchCompletedCount = 0;
 
     // State machine
     SequenceState _state = SEQUENCE_IDLE;
@@ -108,10 +118,18 @@ private:
     float _targetX = 0.0f;
     float _targetY = 0.0f;
 
-    // Persistence key for EEPROM - only declare once
+    // === NEW SPINDLE CONTROL MEMBERS ===
+    bool _spindleAutoControlled = true;     // Whether sequence controls spindle automatically
+    bool _spindleStartedBySequence = false; // Track if we started the spindle (for cleanup)
+    unsigned long _spindleStartTime = 0;    // When spindle was started (for spin-up delay)
+    bool _manualSpindleControl = false;     // User manually controlled spindle during feed hold
+
+    // Persistence key for EEPROM
     static constexpr uint32_t POSITION_STATE_KEY = 0x50534354; // "PSCT"
 
     // State machine methods
+    void updateStartingSpindle();           // NEW: Handle spindle startup
+    void updateSpindleReady();              // NEW: Handle spindle ready state
     void updateMovingToRetract();
     void updateMovingToX();
     void updateMovingToStart();
@@ -121,4 +139,9 @@ private:
     // Helper methods
     bool isAtPosition(float target, float current, float tolerance = 0.01f);
     void moveToNextBatchCut();
+
+    // NEW: Spindle helper methods
+    void startSpindleIfNeeded();
+    void stopSpindleIfControlled();
+    bool isSpindleReady() const;
 };
