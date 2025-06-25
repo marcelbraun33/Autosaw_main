@@ -37,6 +37,7 @@ public:
     bool isEnabled() const;
     float getAxisIncrement() const;
 
+
 private:
     MPGJogManager();
 

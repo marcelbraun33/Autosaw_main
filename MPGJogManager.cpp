@@ -46,15 +46,21 @@ bool MPGJogManager::isEnabled() const {
 }
 
 void MPGJogManager::setAxis(AxisId axis) {
-    _currentAxis = axis;
-    const char* axisName = "";
-    switch (axis) {
-    case AXIS_X: axisName = "X"; break;
-    case AXIS_Y: axisName = "Y"; break;
-    case AXIS_Z: axisName = "Z"; break;
+    if (_currentAxis != axis) {
+        // SIMPLE FIX: Reset encoder to zero when switching axes
+        ClearCore::EncoderIn.Position(0);
+
+        _currentAxis = axis;
+        const char* axisName = "";
+        switch (axis) {
+        case AXIS_X: axisName = "X"; break;
+        case AXIS_Y: axisName = "Y"; break;
+        case AXIS_Z: axisName = "Z"; break;
+        }
+        ClearCore::ConnectorUsb.Send("[MPG] Active axis changed to ");
+        ClearCore::ConnectorUsb.Send(axisName);
+        ClearCore::ConnectorUsb.SendLine(" - Reset encoder to zero");
     }
-    ClearCore::ConnectorUsb.Send("[MPG] Active axis changed to ");
-    ClearCore::ConnectorUsb.SendLine(axisName);
 }
 
 void MPGJogManager::setRangeMultiplier(int multiplier) {

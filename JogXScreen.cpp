@@ -1,4 +1,4 @@
-#include "JogXScreen.h"
+﻿#include "JogXScreen.h"
 #include "MotionController.h"
 #include "ScreenManager.h"
 #include "UIInputManager.h"
@@ -21,8 +21,8 @@ float JogXScreen::m_cutThickness = 0.0f; // Initialize static member
 JogXScreen::JogXScreen(ScreenManager& mgr) : _mgr(mgr) {}
 
 void JogXScreen::onShow() {
-    // Setup MPG mode
-    MPGJogManager::Instance().setEnabled(true);
+    // Setup MPG mode - but keep it DISABLED until user activates
+    MPGJogManager::Instance().setEnabled(false);  // ← FIX: Start disabled like JogY
     MPGJogManager::Instance().setAxis(AXIS_X);
 
     // Only set zero button state
@@ -31,7 +31,6 @@ void JogXScreen::onShow() {
 
     // Let update() handle the rest
 }
-
 void JogXScreen::onHide() {
     MPGJogManager::Instance().setEnabled(false);
     for (int i = 0; i <= WINBUTTON_SET_TOTAL_SLICES; ++i) {
